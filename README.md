@@ -1,5 +1,23 @@
-# diyBMS v4
+# ESP32 port of diyBMS v4
 
+This is my port of Stuart Pittaway's excellent diyBMS ver 4 project
+
+In this port the ESP8266 Controller has been replaced by an ESP32 and various changes have been made to support my local needs.
+
+Main changes are :-
+* New Controller PCB design with ESP32 module ( a Lolin 32 Lite easily available on AliExpress)
+* INA226 Current and Voltage monitor on PCB - INA226 is able to measure current through an external shunt on high or low side of battery. It supports battery voltages of up to 36V,
+so since my battery is more than that I put the shunt halfway up the battery stack, and use a voltage divider to measure total battery voltage. INA226 is I2C connected to the ESP32.
+https://www.ti.com/lit/ds/symlink/ina226.pdf
+* I2C connector to attach to various fan controllers.
+* PWM connector to signal discharge rate to my inverter.
+* Serial interface to signal charge rate to my BST900 charger [BST900(https://github.com/delboy711/BST900)]
+* Two connectors for Solid State Relays to power on/off charger and inverter.
+* Management of Controller via MQTT commands from Node-Red.
+
+Stuart's original README follows
+  ##################################################################
+ 
 Version 4 of the diyBMS
 
 Do it yourself battery management system for Lithium ion battery packs/cells
