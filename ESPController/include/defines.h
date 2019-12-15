@@ -3,8 +3,7 @@
 #ifndef DIYBMS_DEFINES_H_
 #define DIYBMS_DEFINES_H_
 
-
-#define GREEN_LED D0
+#define GREEN_LED 18    //GPIO 18
 
 #define GREEN_LED_ON digitalWrite(GREEN_LED,HIGH)
 #define GREEN_LED_OFF digitalWrite(GREEN_LED,LOW)
@@ -24,6 +23,9 @@
 
 #define SHOW_TIME_PERIOD 5000
 #define NTP_TIMEOUT 1500
+
+#define HOSTNAME "diybmsv4"
+#define MQTTSUBJECT "diybmsv4"
 
 
 struct diybms_eeprom_settings {

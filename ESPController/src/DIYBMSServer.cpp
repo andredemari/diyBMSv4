@@ -29,7 +29,7 @@ distribute your   contributions under the same license as the original.
 #include "DIYBMSServer.h"
 #include "ArduinoJson.h"
 #include "defines.h"
-#include "ESP8266TrueRandom.h"
+#include <ESPTrueRandom.h>
 #include <TimeLib.h>
 #include "settings.h"
 
@@ -47,8 +47,8 @@ String DIYBMSServer::UUIDString;
 void DIYBMSServer::generateUUID() {
     //Serial1.print("generateUUID=");
     byte uuidNumber[16]; // UUIDs in binary form are 16 bytes long
-    ESP8266TrueRandom.uuid(uuidNumber);
-    UUIDString = ESP8266TrueRandom.uuidToString(uuidNumber);
+    ESPTrueRandom.uuid(uuidNumber);
+    UUIDString = ESPTrueRandom.uuidToString(uuidNumber);
     //Serial1.println(UUIDString);
 }
 

@@ -3,9 +3,9 @@
 #define DIYBMSServer_H_
 
 #include <Arduino.h>
-#include <ESP8266WiFi.h>
+#include <WiFi.h>
 #include <Hash.h>
-#include <ESPAsyncTCP.h>
+#include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 
 #include <EEPROM.h>
@@ -14,7 +14,7 @@
 #include "ArduinoJson.h"
 #include "PacketRequestGenerator.h"
 #include "PacketReceiveProcessor.h"
-#include "ESP8266TrueRandom.h"
+#include <ESPTrueRandom.h>
 
 class DIYBMSServer {
    public:

@@ -37,6 +37,7 @@ bool PacketReceiveProcessor::ProcessReply(const uint8_t* receivebuffer,
 
         return true;
       } else {
+        Serial.print("  Not processed by a module");
         //Error count for a request that was not processed by any module
         totalNotProcessedErrors++;
         //Invalidate the whole bank if a module didn't process the request - something is a miss
@@ -45,14 +46,15 @@ bool PacketReceiveProcessor::ProcessReply(const uint8_t* receivebuffer,
       }
     } else {
       // Increase the error count of out of sequence packets
+      Serial.print("  Out of sequence  ");
       totalMissedPacketCount++;
     }
   } else {
     //crc error
+    Serial.print("  CRC error  ");
     totalCRCErrors++;
   }
 
-  //Serial1.println("Failed ProcessReply");
   return false;
 }
 
@@ -83,7 +85,7 @@ void PacketReceiveProcessor::ProcessReplyAddressByte() {
   if (broadcast > 0) {
     if (numberOfModules[ReplyFromBank()] != ReplyLastAddress()) {
 
-      //Serial1.println("Reset bank values");
+      //Serial.println("Reset bank values");
 
       numberOfModules[ReplyFromBank()] = ReplyLastAddress();
 
@@ -125,7 +127,7 @@ void PacketReceiveProcessor::ProcessReplyVoltage() {
 
   uint8_t b = ReplyFromBank();
 
-  //Serial1.print("Bank=");  Serial1.println(b);
+  //Serial.print("Bank=");  Serial1.println(b);
 
   for (uint8_t i = 0; i < maximum_cell_modules; i++) {
     // 3 top bits remaining

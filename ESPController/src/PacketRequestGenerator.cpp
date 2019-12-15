@@ -129,7 +129,7 @@ void PacketRequestGenerator::sendIdentifyModuleRequest(uint8_t b,uint8_t m)
 }
 
 void PacketRequestGenerator::sendGetSettingsRequest(uint8_t b,uint8_t m) {
-  //Serial1.println("sendGetSettingsRequest");
+  //Serial.println("sendGetSettingsRequest");
 
   //Read settings from single module
   setPacketAddress(false,b,m);
@@ -143,7 +143,7 @@ void PacketRequestGenerator::sendGetSettingsRequest(uint8_t b,uint8_t m) {
 
 
 void PacketRequestGenerator::sendCellTemperatureRequest(uint8_t b) {
-  //Serial1.println("sendCellTemperatureRequest");
+  //Serial.println("sendCellTemperatureRequest");
 
   //Read voltage (broadcast) to bank
   setPacketAddress(true,b,0);

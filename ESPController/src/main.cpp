@@ -10,32 +10,16 @@
   This is the code for the controller - it talks to the V4 cell modules over isolated serial bus
 
   This code runs on ESP-8266-12E (NODE MCU 1.0) and compiles with Arduino 1.8.5 environment
+  Modified by Derek Jennings to run on ESP32 compiled on platformio
 
-  Arduino settings
-  NodeMCU 1.0 (ESP-12E module), Flash 4M (3MSPIFF), CPU 80MHZ
 
-  Setting up ESP-8266-12E (NODE MCU 1.0) on Arduino
-  http://www.instructables.com/id/Programming-a-HTTP-Server-on-ESP-8266-12E/
-
-  "c:\Program Files (x86)\PuTTY\putty.exe" -serial COM4 -sercfg 115200,8,n,1,N
-*/
-/*
-*** NOTE IF YOU GET ISSUES WHEN COMPILING IN PLATFORM.IO ***
-
-ERROR: "ESP Async WebServer\src\WebHandlers.cpp:67:64: error: 'strftime' was not declared in this scope"
-
-Delete the file <project folder>\diyBMSv4\ESPController\.pio\libdeps\nodemcuv2\Time\Time.h
-
-The time.h file in this library conflicts with the time.h file in the ESP core platform code
-*/
-/*
    PINS
-   D0 = GREEN_LED
-   D1 = i2c SDA
-   D2 = i2c SCL
-   D3 = switch to ground (reset WIFI configuration on power up)
+   D0 = GREEN_LED  = ESP32 GPIO 18
+   D1 = i2c SDA   = ESP32 GPIO 21
+   D2 = i2c SCL   = ESP32 GPIO 22
+   D3 = switch to ground (reset WIFI configuration on power up) = ESP32 GPIO 14
    D4 = GPIO2 = TXD1 = TRANSMIT DEBUG SERIAL (and blue led on esp8266)
-   D5 = GPIO14 = Interrupt in from PCF8574
+   D5 = GPIO14 = Interrupt in from PCF8574  = ESP32 GPIO 27
    D7 = GPIO13 = RECEIVE SERIAL
    D8 = GPIO15 = TRANSMIT SERIAL
 
@@ -46,7 +30,10 @@ The time.h file in this library conflicts with the time.h file in the ESP core p
 
 
 #include <Arduino.h>
-#include <ESP8266WiFi.h>
+//#include <ESP8266WiFi.h>
+#include <WiFi.h>
+//#include <ESP8266mDNS.h>
+#include <ESPmDNS.h>
 #include <Hash.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncMqttClient.h>
@@ -55,9 +42,10 @@ The time.h file in this library conflicts with the time.h file in the ESP core p
 #include <Ticker.h>
 #include <pcf8574_esp.h>
 #include <Wire.h>
+#include <ArduinoOTA.h>
 
 //Debug flags for ntpclientlib
-#define DBG_PORT Serial1
+#define DBG_PORT Serial
 #define DEBUG_NTPCLIENT
 
 #include <TimeLib.h>
@@ -86,6 +74,8 @@ bool previousRelayPulse[RELAY_TOTAL];
 
 //PCF8574P has an i2c address of 0x38 instead of the normal 0x20
 PCF857x pcf8574(0x38, &Wire);
+
+volatile bool PCFInterruptFlag = false;
 
 void ICACHE_RAM_ATTR PCFInterrupt() {
   if ((pcf8574.read8() & B00010000)==0) {
@@ -120,8 +110,8 @@ PacketSerial_<COBS, 0, 128> myPacketSerial;
 
 volatile bool waitingForReply=false;
 
-WiFiEventHandler wifiConnectHandler;
-WiFiEventHandler wifiDisconnectHandler;
+//WiFiEventHandler wifiConnectHandler;
+//WiFiEventHandler wifiDisconnectHandler;
 
 Ticker myTimerRelay;
 
@@ -140,19 +130,19 @@ uint16_t sequence=0;
 AsyncMqttClient mqttClient;
 
 void dumpPacketToDebug(packet *buffer) {
-  Serial1.print(buffer->address,HEX);
-  Serial1.print('/');
-  Serial1.print(buffer->command,HEX);
-  Serial1.print('/');
-  Serial1.print(buffer->sequence,HEX);
-  Serial1.print('=');
+  Serial.print(buffer->address,HEX);
+  Serial.print('/');
+  Serial.print(buffer->command,HEX);
+  Serial.print('/');
+  Serial.print(buffer->sequence,HEX);
+  Serial.print('=');
   for (size_t i = 0; i < maximum_cell_modules; i++)
   {
-    Serial1.print(buffer->moduledata[i],HEX);
-    Serial1.print(" ");
+    Serial.print(buffer->moduledata[i],HEX);
+    Serial.print(" ");
   }
-  Serial1.print(" =");
-  Serial1.print(buffer->crc,HEX);
+  Serial.print(" =");
+  Serial.print(buffer->crc,HEX);
 }
 
 uint16_t minutesSinceMidnight() {
@@ -161,19 +151,19 @@ uint16_t minutesSinceMidnight() {
 
 void processSyncEvent (NTPSyncEvent_t ntpEvent) {
     if (ntpEvent < 0) {
-        Serial1.printf ("Time Sync error: %d\n", ntpEvent);
+        Serial.printf ("Time Sync error: %d\n", ntpEvent);
         if (ntpEvent == noResponse)
-            Serial1.println ("NTP server not reachable");
+            Serial.println ("NTP server not reachable");
         else if (ntpEvent == invalidAddress)
-            Serial1.println ("Invalid NTP server address");
+            Serial.println ("Invalid NTP server address");
         else if (ntpEvent == errorSending)
-            Serial1.println ("Error sending request");
+            Serial.println ("Error sending request");
         else if (ntpEvent == responseError)
-            Serial1.println ("NTP response error");
+            Serial.println ("NTP response error");
     } else {
         if (ntpEvent == timeSyncd) {
-            Serial1.print ("Got NTP time: ");
-            Serial1.println (NTP.getTimeDateString (NTP.getLastNTPSync()));
+            Serial.print ("Got NTP time: ");
+            Serial.println (NTP.getTimeDateString (NTP.getLastNTPSync()));
         }
     }
 }
@@ -186,17 +176,17 @@ void onPacketReceived(const uint8_t* receivebuffer, size_t len)
 
   if (len==sizeof(packet)) {
     // Process decoded incoming packet
-    Serial1.print("R:");
+    Serial.print("R:");
     dumpPacketToDebug((packet*)receivebuffer);
 
     if (!receiveProc.ProcessReply(receivebuffer,sequence)) {
-      Serial1.println("**FAILED PROCESS REPLY**");
+      Serial.println("** FAILED PROCESS REPLY **");
     }
 
     //We received a packet (although may have been an error)
     waitingForReply=false;
 
-    Serial1.println();
+    Serial.println();
   }
 }
 
@@ -205,13 +195,13 @@ void timerTransmitCallback() {
   //this slows the transmit process down a lot so potentially need to look at a better
   //way to do this and also keep track of missing messages replies for error tracking
   if (waitingForReply) {
-    //Serial1.print('E');Serial1.print(receiveProc.commsError);
+    //Serial.print('E');Serial.print(receiveProc.commsError);
 
     //Increment the counter to watch for complete comms failures
     receiveProc.commsError++;
 
     //After 5 attempts give up and send another packet
-    if (receiveProc.commsError> (mysettings.totalNumberOfBanks* 10)) {
+    if (receiveProc.commsError>10) {
       waitingForReply=false;
       receiveProc.totalMissedPacketCount++;
     } else {
@@ -226,7 +216,7 @@ void timerTransmitCallback() {
     GREEN_LED_ON;
 
     //Wake up the connected cell module from sleep
-    Serial.write(0x00);
+    Serial2.write(0x00);
     delay(10);
 
     requestQueue.pop(&transmitBuffer);
@@ -237,12 +227,12 @@ void timerTransmitCallback() {
 
     waitingForReply=true;
 
-    Serial1.print("S:");
+    Serial.print("S:");
     dumpPacketToDebug(&transmitBuffer);
 
-    Serial1.print("/Q:");
-    Serial1.print(requestQueue.getCount());
-    Serial1.print(" # ");
+    Serial.print("/Q:");
+    Serial.print(requestQueue.getCount());
+    Serial.print(" # ");
 
     GREEN_LED_OFF;
   }
@@ -357,12 +347,12 @@ void timerProcessRules() {
   // It wouldn't generate an interrupt if you were to connect a button to it that pulls it HIGH when you press the button.
   // Any pin you wish to use as input must be written HIGH and be pulled LOW to generate an interrupt.
 
-  Serial1.print("Rules:");
+  Serial.print("Rules:");
   for (int8_t r = 0; r < RELAY_RULES; r++)
   {
-    Serial1.print(rule_outcome[r]);
+    Serial.print(rule_outcome[r]);
   }
-  Serial1.print("=");
+  Serial.print("=");
 
   uint8_t relay[RELAY_TOTAL];
 
@@ -398,10 +388,10 @@ void timerProcessRules() {
     {
       if (previousRelayState[n]!=relay[n]) {
         //Would be better here to use the WRITE8 to lower i2c traffic
-        Serial1.print("Relay:");
-        Serial1.print(n);
-        Serial1.print("=");
-        Serial1.print(relay[n]);
+        Serial.print("Relay:");
+        Serial.print(n);
+        Serial.print("=");
+        Serial.print(relay[n]);
 
         //Set the relay
         pcf8574.write(n, relay[n]);
@@ -412,14 +402,14 @@ void timerProcessRules() {
           //If its a pulsed relay, invert the output quickly via a one time only timer
           previousRelayPulse[n]=true;
           myTimerSwitchPulsedRelay.attach(0.1, timerSwitchPulsedRelay);
-          Serial1.print("P");
+          Serial.print("P");
         }
       }
 
     }
-    Serial1.println("");
+    Serial.println("");
   } else {
-    Serial1.println("N/F");
+    Serial.println("N/F");
   }
 
 }
@@ -445,14 +435,14 @@ void timerEnqueueCallback() {
 
 
 void connectToWifi() {
-  Serial1.println("Connecting to Wi-Fi...");
+  Serial.println("Connecting to Wi-Fi...");
   WiFi.mode(WIFI_STA);
   WiFi.begin(DIYBMSSoftAP::WifiSSID(), DIYBMSSoftAP::WifiPassword());
 }
 
 
 void connectToMqtt() {
-  Serial1.println("Connecting to MQTT...");
+  Serial.println("Connecting to MQTT...");
   mqttClient.connect();
 }
 
@@ -469,29 +459,29 @@ void setupInfluxClient()
         return;
 
     aClient->onError([](void* arg, AsyncClient* client, err_t error) {
-        Serial1.println("Connect Error");
+        Serial.println("Connect Error");
         aClient = NULL;
         delete client;
     }, NULL);
 
     aClient->onConnect([](void* arg, AsyncClient* client) {
-        Serial1.println("Connected");
+        Serial.println("Connected");
 
         //Send the packet here
 
         aClient->onError(NULL, NULL);
 
         client->onDisconnect([](void* arg, AsyncClient* c) {
-            Serial1.println("Disconnected");
+            Serial.println("Disconnected");
             aClient = NULL;
             delete c;
         }, NULL);
 
         client->onData([](void* arg, AsyncClient* c, void* data, size_t len) {
             //Data received
-            Serial1.print("\r\nData: ");Serial1.println(len);
+            Serial.print("\r\nData: ");Serial.println(len);
             //uint8_t* d = (uint8_t*)data;
-            //for (size_t i = 0; i < len; i++) {Serial1.write(d[i]);}
+            //for (size_t i = 0; i < len; i++) {Serial.write(d[i]);}
         }, NULL);
 
         //send the request
@@ -530,8 +520,8 @@ void setupInfluxClient()
         +"Content-Type: text/plain\r\n"
         +"\r\n";
 
-        //Serial1.println(header.c_str());
-        //Serial1.println(poststring.c_str());
+        Serial.println(header.c_str());
+        Serial.println(poststring.c_str());
 
         client->write(header.c_str());
         client->write(poststring.c_str());
@@ -542,12 +532,12 @@ void setupInfluxClient()
 void SendInfluxdbPacket() {
   if (!mysettings.influxdb_enabled) return;
 
-  Serial1.println("SendInfluxdbPacket");
+  Serial.println("SendInfluxdbPacket");
 
   setupInfluxClient();
 
   if(!aClient->connect(mysettings.influxdb_host, mysettings.influxdb_httpPort )){
-    Serial1.println("Influxdb connect fail");
+    Serial.println("Influxdb connect fail");
     AsyncClient * client = aClient;
     aClient = NULL;
     delete client;
@@ -559,23 +549,13 @@ void startTimerToInfluxdb() {
   myTimerSendInfluxdbPacket.attach(30, SendInfluxdbPacket);
 }
 
-void onWifiConnect(const WiFiEventStationModeGotIP& event) {
+void onWifiConnect(WiFiEvent_t event, WiFiEventInfo_t info) {     // for esp32
 
   wifiFirstConnected = true;
+  Serial.println("Connected to Wi-Fi.");
+  Serial.print(F(". Connected IP:"));
+  Serial.println(WiFi.localIP());
 
-  Serial1.println("Connected to Wi-Fi.");
-  Serial1.print( WiFi.status() );
-  Serial1.print(F(". Connected IP:"));
-  Serial1.println(WiFi.localIP());
-
-  /*
-  TODO: CHECK ERROR CODES BETTER!
-  0 : WL_IDLE_STATUS when Wi-Fi is in process of changing between statuses
-  1 : WL_NO_SSID_AVAIL in case configured SSID cannot be reached
-  3 : WL_CONNECTED after successful connection is established
-  4 : WL_CONNECT_FAILED if password is incorrect
-  6 : WL_DISCONNECTED if module is not configured in station mode
-  */
   if (!server_running)
   {
     DIYBMSServer::StartServer(&server);
@@ -589,11 +569,14 @@ void onWifiConnect(const WiFiEventStationModeGotIP& event) {
   if (mysettings.influxdb_enabled) {
     startTimerToInfluxdb();
   }
+
+  MDNS.begin(HOSTNAME);          //Start mDNS
+  MDNS.addService("http", "tcp", 80);
 }
 
 
-void onWifiDisconnect(const WiFiEventStationModeDisconnected& event) {
-  Serial1.println("Disconnected from Wi-Fi.");
+void onWifiDisconnect(WiFiEvent_t event, WiFiEventInfo_t info) {    // for esp32
+  Serial.println("Disconnected from Wi-Fi.");
 
   // ensure we don't reconnect to MQTT while reconnecting to Wi-Fi
   mqttReconnectTimer.detach();
@@ -607,7 +590,7 @@ void onWifiDisconnect(const WiFiEventStationModeDisconnected& event) {
 }
 
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
-  Serial1.println("Disconnected from MQTT.");
+  Serial.println("Disconnected from MQTT.");
 
   myTimerSendMqttPacket.detach();
 
@@ -620,7 +603,7 @@ void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
 void sendMqttPacket() {
   if (!mysettings.mqtt_enabled) return;
 
-  Serial1.println("Sending MQTT");
+  Serial.println("Sending MQTT");
 
   char buffer[50];
   char value[20];
@@ -648,7 +631,7 @@ void sendMqttPacket() {
 }
 
 void onMqttConnect(bool sessionPresent) {
-  Serial1.println("Connected to MQTT.");
+  Serial.println("Connected to MQTT.");
   myTimerSendMqttPacket.attach(30, sendMqttPacket);
 }
 
@@ -656,7 +639,7 @@ void LoadConfiguration() {
 
   if (Settings::ReadConfigFromEEPROM((char*)&mysettings, sizeof(mysettings), EEPROM_SETTINGS_START_ADDRESS)) return;
 
-    Serial1.println("Apply default config");
+    Serial.println("Apply default config");
 
     mysettings.totalNumberOfBanks=1;
     mysettings.combinationParallel=true;
@@ -719,21 +702,20 @@ void LoadConfiguration() {
 }
 
 void setup() {
-  WiFi.mode(WIFI_OFF);
-  
-  //Serial is used for communication to modules, Serial1 is for debug output
+  //Serial2 is used for communication to modules, Serial is for debug output
+  //Serial1 is for BST900 Control
   pinMode(GREEN_LED, OUTPUT);
-  //D3 is used to reset access point WIFI details on boot up
-  pinMode(D3,INPUT_PULLUP);
-  //D5 is interrupt pin from PCF8574
-  pinMode(D5,INPUT_PULLUP);
+  //GPIO 19 is used to reset access point WIFI details on boot up
+  pinMode(19,INPUT_PULLUP);
+  //GPIO 23 is interrupt pin from PCF8574
+  pinMode(23,INPUT_PULLUP);
 
   //Fix for issue 5, delay for 3 seconds on power up with green LED lit so
   //people get chance to jump WIFI reset pin (d3)
   GREEN_LED_ON;
   delay(3000);
-  //This is normally pulled high, D3 is used to reset WIFI details
-  uint8_t clearAPSettings=digitalRead(D3);
+  //This is normally pulled high, GPIO14 is used to reset WIFI details
+  uint8_t clearAPSettings=digitalRead(14);
   GREEN_LED_OFF;
 
   //We generate a unique number which is used in all following JSON requests
@@ -758,25 +740,25 @@ void setup() {
     cmi[3][i].voltagemVMin=6000;
   }
 
-  Serial.begin(4800, SERIAL_8N1);           // Serial for comms to modules
+  Serial2.begin(4800, SERIAL_8N1);           // Serial for comms to modules
 
-  //Use alternative GPIO pins of D7/D8
-  //D7 = GPIO13 = RECEIVE SERIAL
-  //D8 = GPIO15 = TRANSMIT SERIAL
-  Serial.swap();
 
-  myPacketSerial.setStream(&Serial);           // start serial for output
+  myPacketSerial.setStream(&Serial2);           // start serial for output
   myPacketSerial.setPacketHandler(&onPacketReceived);
 
   //Debug serial output
-  Serial1.begin(115200, SERIAL_8N1);
-  Serial1.setDebugOutput(true);
+  Serial.begin(115200, SERIAL_8N1);
+  Serial.setDebugOutput(true);
+
+  //BST900 serial interface
+  Serial1.begin(38400, SERIAL_8N1);   //ToDo  define pins  DJ
 
   LoadConfiguration();
 
   //SDA / SCL
   //I'm sure this should be 4,5 !
-  Wire.begin(5,4);
+  //Wire.begin(5,4);
+  Wire.begin(21,22);    // For ESP32
   Wire.setClock(100000L);
 
   //Make PINs 4-7 INPUTs - the interrupt fires when triggered
@@ -786,7 +768,7 @@ void setup() {
   pcf8574.read8();
 
   if (pcf8574.lastError()==0) {
-    Serial1.println("Found pcf8574");
+    Serial.println("Found pcf8574");
     pcf8574.write(4, HIGH);
     pcf8574.write(5, HIGH);
     pcf8574.write(6, HIGH);
@@ -801,13 +783,13 @@ void setup() {
     PCF8574Enabled=true;
   } else {
     //Not fitted
-    Serial1.println("pcf8574 not fitted");
+    Serial.println("pcf8574 not fitted");
     PCF8574Enabled=false;
   }
 
   //internal pullup-resistor on the interrupt line via ESP8266
   pcf8574.resetInterruptPin();
-  attachInterrupt(digitalPinToInterrupt(D5), PCFInterrupt, FALLING);
+  attachInterrupt(digitalPinToInterrupt(27), PCFInterrupt, FALLING);    // for esp32
 
   //Ensure we service the cell modules every 4 seconds
   myTimer.attach(4, timerEnqueueCallback);
@@ -818,7 +800,6 @@ void setup() {
   //We process the transmit queue every 0.5 seconds (this needs to be lower delay than the queue fills)
   myTransmitTimer.attach(0.5, timerTransmitCallback);
 
-
   //Temporarly force WIFI settings
   //wifi_eeprom_settings xxxx;
   //strcpy(xxxx.wifi_ssid,"XXXXXXXXXXXXXXXXX");
@@ -826,9 +807,9 @@ void setup() {
   //Settings::WriteConfigToEEPROM((char*)&xxxx, sizeof(xxxx), EEPROM_WIFI_START_ADDRESS);
 
   if (!DIYBMSSoftAP::LoadConfigFromEEPROM() || clearAPSettings==0) {
-      Serial1.print("Clear AP settings");
-      Serial1.println(clearAPSettings);
-      Serial1.println("Setup Access Point");
+      Serial.print("Clear AP settings");
+      Serial.println(clearAPSettings);
+      Serial.println("Setup Access Point");
       //We are in initial power on mode (factory reset)
       DIYBMSSoftAP::SetupAccessPoint(&server);
   } else {
@@ -839,30 +820,63 @@ void setup() {
          NTPsyncEventTriggered = true;
      });
 
-      Serial1.println("Connecting to WIFI");
+      Serial.println("Connecting to WIFI");
 
-    /* Explicitly set the ESP8266 to be a WiFi-client, otherwise by default,
+    /* Explicitly set the ESP32 to be a WiFi-client, otherwise by default,
       would try to act as both a client and an access-point */
 
-      wifiConnectHandler = WiFi.onStationModeGotIP(onWifiConnect);
-      wifiDisconnectHandler = WiFi.onStationModeDisconnected(onWifiDisconnect);
+      // For ESP32
+      WiFi.onEvent(onWifiConnect, SYSTEM_EVENT_STA_GOT_IP);
+      WiFi.onEvent(onWifiDisconnect, SYSTEM_EVENT_STA_DISCONNECTED);
 
       mqttClient.onConnect(onMqttConnect);
       mqttClient.onDisconnect(onMqttDisconnect);
 
       if (mysettings.mqtt_enabled) {
-        Serial1.println("MQTT Enabled");
+        Serial.println("MQTT Enabled");
         mqttClient.setServer(mysettings.mqtt_server, mysettings.mqtt_port);
         mqttClient.setCredentials(mysettings.mqtt_username,mysettings.mqtt_password);
       }
 
       connectToWifi();
   }
+
+//ESP32 Over the Air updates
+  ArduinoOTA
+    .onStart([]() {
+      String type;
+      if (ArduinoOTA.getCommand() == U_FLASH)
+        type = "sketch";
+      else // U_SPIFFS
+        type = "filesystem";
+
+      // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+      Serial.println("Start updating " + type);
+    })
+    .onEnd([]() {
+      Serial.println("\nEnd");
+    })
+    .onProgress([](unsigned int progress, unsigned int total) {
+      Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    })
+    .onError([](ota_error_t error) {
+      Serial.printf("Error[%u]: ", error);
+      if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+      else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+      else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+      else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+      else if (error == OTA_END_ERROR) Serial.println("End Failed");
+    });
+
+  ArduinoOTA.begin();
+
 }
 
 void loop() {
+  ArduinoOTA.handle();
+
   // Call update to receive, decode and process incoming packets.
-  if (Serial.available()) {
+  if (Serial2.available()) {
     myPacketSerial.update();
   }
 
@@ -871,7 +885,7 @@ void loop() {
       //Ideally we wouldn't need to reboot if the code could sort itself out!
       ConfigHasChanged--;
       if (ConfigHasChanged==0) {
-        Serial1.println("RESTART AFTER CONFIG CHANGE");
+        Serial.println("RESTART AFTER CONFIG CHANGE");
         //Stop networking
         if (mqttClient.connected()) {
           mqttClient.disconnect(true);
@@ -882,11 +896,11 @@ void loop() {
       delay(1);
   }
 
-  //if (emergencyStop) {    Serial1.println("EMERGENCY STOP");  }
+  //if (emergencyStop) {    Serial.println("EMERGENCY STOP");  }
 
   if (wifiFirstConnected) {
-      Serial1.print("Requesting NTP from ");
-      Serial1.println(mysettings.ntpServer);
+      Serial.print("Requesting NTP from ");
+      Serial.println(mysettings.ntpServer);
       wifiFirstConnected = false;
       //Update time every 10 minutes
       NTP.setInterval (600);

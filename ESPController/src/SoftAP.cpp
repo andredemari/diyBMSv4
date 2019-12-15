@@ -79,7 +79,7 @@ bool DIYBMSSoftAP::LoadConfigFromEEPROM() {
 void DIYBMSSoftAP::SetupAccessPoint(AsyncWebServer  *webserver) {
 
   _myserver=webserver;
-  const char* ssid = "DIY_BMS_CONTROLLER";
+  const char* ssid = "ESP32_DIY_BMS_CONTROLLER";
 
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
@@ -93,7 +93,7 @@ void DIYBMSSoftAP::SetupAccessPoint(AsyncWebServer  *webserver) {
   {
     for (int i = 0; i < n; ++i)
     {
-      if (WiFi.encryptionType(i) != ENC_TYPE_NONE) {
+      if (WiFi.encryptionType(i) != WIFI_AUTH_OPEN) {
         // Only show encrypted networks
         DIYBMSSoftAP::networks += "<option>"+WiFi.SSID(i)+"</option>";
       }
