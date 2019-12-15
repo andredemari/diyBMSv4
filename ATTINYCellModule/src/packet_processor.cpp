@@ -25,6 +25,45 @@ https://creativecommons.org/licenses/by-nc-sa/2.0/uk/
 */
 
 #include "packet_processor.h"
+//Function to populate settings from packet DJ
+void PacketProcessor::PacketToConfig() {
+  FLOATUNION_t myFloat;
+
+  myFloat.word[0] = buffer.moduledata[0];
+  myFloat.word[1] = buffer.moduledata[1];
+  if (myFloat.number < 0xFFFF) {
+    _config->LoadResistance = myFloat.number;
+  }
+
+  myFloat.word[0] = buffer.moduledata[2];
+  myFloat.word[1] = buffer.moduledata[3];
+
+  if (myFloat.number < 0xFFFF) {
+    _config->Calibration = myFloat.number;
+  }
+
+  myFloat.word[0] = buffer.moduledata[4];
+  myFloat.word[1] = buffer.moduledata[5];
+  if (myFloat.number < 0xFFFF) {
+    _config->mVPerADC = myFloat.number;
+  }
+
+  if (buffer.moduledata[6] != 0xFF) {
+    _config->BypassOverTempShutdown = buffer.moduledata[6];
+  }
+
+  if (buffer.moduledata[7] != 0xFFFF) {
+    _config->BypassThresholdmV = buffer.moduledata[7];
+  }
+  if (buffer.moduledata[8] != 0xFFFF) {
+    _config->Internal_BCoefficient = buffer.moduledata[8];
+  }
+
+  if (buffer.moduledata[9] != 0xFFFF) {
+    _config->External_BCoefficient = buffer.moduledata[9];
+  }
+}
+
 
 // Increases the incoming packets address before sending to the next module
 void PacketProcessor::incrementPacketAddress() {
@@ -231,7 +270,7 @@ bool PacketProcessor::processPacket() {
       //Indicate that we received and did something
       buffer.moduledata[mymoduleaddress] = 0xFFFF;
 
-      //For the next 10 receied packets - keep the LEDs lit up
+      //For the next 10 received packets - keep the LEDs lit up
       identifyModule = 10;
       return true;
     }
@@ -277,47 +316,18 @@ bool PacketProcessor::processPacket() {
 
   case COMMAND::WriteSettings:
     {
-      FLOATUNION_t myFloat;
-
-      myFloat.word[0] = buffer.moduledata[0];
-      myFloat.word[1] = buffer.moduledata[1];
-      if (myFloat.number < 0xFFFF) {
-        _config->LoadResistance = myFloat.number;
-      }
-
-      myFloat.word[0] = buffer.moduledata[2];
-      myFloat.word[1] = buffer.moduledata[3];
-
-      if (myFloat.number < 0xFFFF) {
-        _config->Calibration = myFloat.number;
-      }
-
-      myFloat.word[0] = buffer.moduledata[4];
-      myFloat.word[1] = buffer.moduledata[5];
-      if (myFloat.number < 0xFFFF) {
-        _config->mVPerADC = myFloat.number;
-      }
-
-      if (buffer.moduledata[6] != 0xFF) {
-        _config->BypassOverTempShutdown = buffer.moduledata[6];
-      }
-
-      if (buffer.moduledata[7] != 0xFFFF) {
-        _config->BypassThresholdmV = buffer.moduledata[7];
-      }
-      if (buffer.moduledata[8] != 0xFFFF) {
-        _config->Internal_BCoefficient = buffer.moduledata[8];
-      }
-
-      if (buffer.moduledata[9] != 0xFFFF) {
-        _config->External_BCoefficient = buffer.moduledata[9];
-      }
-
-      //Save settings
+      PacketToConfig();       //Populate Config from Packet  DJ
       Settings::WriteConfigToEEPROM((char*)_config, sizeof(CellModuleConfig), EEPROM_CONFIG_ADDRESS);
 
       return true;
     }
+
+  case COMMAND::VolatileSettings:
+    {
+      PacketToConfig();       //Populate Config from Packet  DJ
+      return true;
+    }
+
   }
 
   return false;

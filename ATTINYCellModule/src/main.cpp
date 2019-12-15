@@ -117,7 +117,8 @@ void onPacketReceived(const uint8_t * receivebuffer, size_t len) {
 
 
     //DEBUG: Are there any known issues with Serial Flush causing a CPU to hang?
-    hardware.FlushSerial0();
+    //hardware.FlushSerial0();
+    delay(8);                     //Required to stop out of sequence errors - DJ
     hardware.DisableSerial0TX();
     //hardware.BlueLedOff();
   }

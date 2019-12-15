@@ -66,7 +66,7 @@ private:
   void incrementPacketAddress();
   bool isPacketForMe();
   //uint8_t TemperatureToByte(float TempInCelcius);
-
+  void PacketToConfig();          //Function to read settings from packet DJ
   volatile uint8_t adcmode=0;
   volatile uint16_t raw_adc_voltage;
   volatile uint16_t onboard_temperature;

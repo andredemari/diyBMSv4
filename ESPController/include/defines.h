@@ -78,7 +78,8 @@ enum COMMAND: uint8_t
     ReadTemperature=B00000011,
     ReadBadPacketCounter=B00000100,
     ReadSettings=B00000101,
-    WriteSettings=B00000110
+    WriteSettings=B00000110,
+    VolatileSettings=B00000111
 
     // 0000 0000  = set bank identity
     // 0000 0001  = read voltage and status
@@ -86,6 +87,8 @@ enum COMMAND: uint8_t
     // 0000 0011  = Read temperature
     // 0000 0100  = Report number of bad packets
     // 0000 0101  = Report settings/configuration
+    // 0000 0110  = Write settings and save to EEPROM
+    // 0000 0111  = Write Settings, no save to EEPROM
 };
 
 //Maximum of 16 cell modules (dont change this!)
