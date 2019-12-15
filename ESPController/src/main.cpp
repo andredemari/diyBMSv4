@@ -605,27 +605,13 @@ void sendMqttPacket() {
 
   Serial.println("Sending MQTT");
 
-  char buffer[50];
-  char value[20];
+  char value[127];
 
   for (uint8_t bank = 0; bank < 4; bank++) {
     for (uint8_t i = 0; i < numberOfModules[bank]; i++) {
-      sprintf(buffer, "diybms/%d/%d/voltage", bank,i);
-      float v=(float)cmi[bank][i].voltagemV/1000.0;
-      dtostrf(v,7, 3, value);
-      mqttClient.publish(buffer, 0, true, value);
-
-      sprintf(buffer, "diybms/%d/%d/inttemp", bank,i);
-      sprintf(value, "%d", cmi[bank][i].internalTemp);
-      mqttClient.publish(buffer, 0, true, value);
-
-      sprintf(buffer, "diybms/%d/%d/exttemp", bank,i);
-      sprintf(value, "%d", cmi[bank][i].externalTemp);
-      mqttClient.publish(buffer, 0, true, value);
-
-      sprintf(buffer, "diybms/%d/%d/bypass", bank,i);
-      sprintf(value, "%d", cmi[bank][i].inBypass ? 1:0);
-      mqttClient.publish(buffer, 0, true, value);
+      int address = bank*16+i;
+      sprintf(value, "{\"address\":\"%d\",\"volts\":\"%d\",\"temp\":\"%d\",\"exttemp\":\"%d\",\"bypass\":\"%d\"}", address, cmi[bank][i].voltagemV, cmi[bank][i].internalTemp,cmi[bank][i].externalTemp,cmi[bank][i].inBypass);
+      mqttClient.publish(MQTTSUBJECT, 0, true, value);
     }
   }
 }
