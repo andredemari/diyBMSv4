@@ -43,6 +43,7 @@
 #include <pcf8574_esp.h>
 #include <Wire.h>
 #include <ArduinoOTA.h>
+#include "mqtt.h"
 
 //Debug flags for ntpclientlib
 #define DBG_PORT Serial
@@ -107,6 +108,8 @@ PacketRequestGenerator prg=PacketRequestGenerator(&requestQueue);
 PacketReceiveProcessor receiveProc=PacketReceiveProcessor();
 
 PacketSerial_<COBS, 0, 128> myPacketSerial;
+
+mqttProc mqt;
 
 volatile bool waitingForReply=false;
 
@@ -610,7 +613,7 @@ void sendMqttPacket() {
   for (uint8_t bank = 0; bank < 4; bank++) {
     for (uint8_t i = 0; i < numberOfModules[bank]; i++) {
       int address = bank*16+i;
-      sprintf(value, "{\"address\":\"%d\",\"volts\":\"%d\",\"temp\":\"%d\",\"exttemp\":\"%d\",\"bypass\":\"%d\"}", address, cmi[bank][i].voltagemV, cmi[bank][i].internalTemp,cmi[bank][i].externalTemp,cmi[bank][i].inBypass);
+      sprintf(value, "{\"address\":%d,\"volts\":%d,\"temp\":%d,\"exttemp\":%d,\"bypass\":%d}", address, cmi[bank][i].voltagemV, cmi[bank][i].internalTemp,cmi[bank][i].externalTemp,cmi[bank][i].inBypass);
       mqttClient.publish(MQTTSUBJECT, 0, true, value);
     }
   }
@@ -618,7 +621,12 @@ void sendMqttPacket() {
 
 void onMqttConnect(bool sessionPresent) {
   Serial.println("Connected to MQTT.");
+  mqttClient.subscribe("diybms_command", 0);
   myTimerSendMqttPacket.attach(30, sendMqttPacket);
+}
+
+void onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
+  mqt.processCommand(payload);
 }
 
 void LoadConfiguration() {
@@ -817,6 +825,7 @@ void setup() {
 
       mqttClient.onConnect(onMqttConnect);
       mqttClient.onDisconnect(onMqttDisconnect);
+      mqttClient.onMessage(onMqttMessage);
 
       if (mysettings.mqtt_enabled) {
         Serial.println("MQTT Enabled");
