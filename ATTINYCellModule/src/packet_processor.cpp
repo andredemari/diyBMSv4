@@ -316,49 +316,8 @@ bool PacketProcessor::processPacket() {
 
   case COMMAND::WriteSettings:
     {
-<<<<<<< HEAD
       PacketToConfig();       //Populate Config from Packet  DJ
-      Settings::WriteConfigToEEPROM((char*)_config, sizeof(CellModuleConfig), EEPROM_CONFIG_ADDRESS);
-=======
-      FLOATUNION_t myFloat;
-
-      myFloat.word[0] = buffer.moduledata[0];
-      myFloat.word[1] = buffer.moduledata[1];
-      if (myFloat.number < 0xFFFF) {
-        _config->LoadResistance = myFloat.number;
-      }
-
-      myFloat.word[0] = buffer.moduledata[2];
-      myFloat.word[1] = buffer.moduledata[3];
-
-      if (myFloat.number < 0xFFFF) {
-        _config->Calibration = myFloat.number;
-      }
-
-      myFloat.word[0] = buffer.moduledata[4];
-      myFloat.word[1] = buffer.moduledata[5];
-      if (myFloat.number < 0xFFFF) {
-        _config->mVPerADC = myFloat.number;
-      }
-
-      if (buffer.moduledata[6] != 0xFF) {
-        _config->BypassOverTempShutdown = buffer.moduledata[6];
-      }
-
-      if (buffer.moduledata[7] != 0xFFFF) {
-        _config->BypassThresholdmV = buffer.moduledata[7];
-      }
-      if (buffer.moduledata[8] != 0xFFFF) {
-        _config->Internal_BCoefficient = buffer.moduledata[8];
-      }
-
-      if (buffer.moduledata[9] != 0xFFFF) {
-        _config->External_BCoefficient = buffer.moduledata[9];
-      }
-
-      //Save settings
       Settings::WriteConfigToEEPROM((uint8_t*)_config, sizeof(CellModuleConfig), EEPROM_CONFIG_ADDRESS);
->>>>>>> 2d119bf... Fix compiler warning errors about data types
 
       return true;
     }

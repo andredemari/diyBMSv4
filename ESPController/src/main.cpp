@@ -113,7 +113,9 @@ PacketRequestGenerator prg=PacketRequestGenerator(&requestQueue);
 
 PacketReceiveProcessor receiveProc=PacketReceiveProcessor();
 
-PacketSerial_<COBS, 0, 128> myPacketSerial;
+#define framingmarker (uint8_t)0x33
+
+PacketSerial_<COBS, framingmarker, 128> myPacketSerial;
 
 mqttProc mqt;
 
@@ -225,7 +227,7 @@ void timerTransmitCallback() {
     GREEN_LED_ON;
 
     //Wake up the connected cell module from sleep
-    Serial2.write(0x00);
+    Serial2.write(framingmarker);
     delay(10);
 
     requestQueue.pop(&transmitBuffer);
