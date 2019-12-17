@@ -17,12 +17,13 @@ void mqttProc::begin() {    //Initialise relays
   pinMode(ESP32_RELAY3, OUTPUT);
   ledcSetup(0, 2048, 8);        //Setup PWM on inverter control pin
   ledcAttachPin(INVERTER_PWM, 0);
+  bst900_init();
   return;
 }
 
 
 void mqttProc::sendModuleStatus(uint8_t bank, uint8_t module) {
-  char value[127];
+  //char value[127];
   uint8_t address = (bank<<4)||module;
   sprintf(value, "{\"address\":%d,\"volts\":%d,\"temp\":%d,\"exttemp\":%d,\"bypass\":%d}", address, cmi[bank][module].voltagemV,
     cmi[bank][module].internalTemp,cmi[bank][module].externalTemp,cmi[bank][module].inBypass);
@@ -115,7 +116,8 @@ void mqttProc::processCommand(char* payload) {    //MQTT packet received
       //Relays will switch at next processrules timer expiry
       //TODO set up watchdog timer to auto switch off if loss of mqtt communication
       bstcurrent = mqtt_json["bstcurrent"];
-      //TODO function to control BST900 charger
+      if (bstcurrent > MAXCHARGERATE) bstcurrent = MAXCHARGERATE;
+      setcurrent_bst900();                                             //Set charger current
       Serial.print("Charging rate = "); Serial.println(bstcurrent);
       break;
 
@@ -146,4 +148,88 @@ void mqttProc::processCommand(char* payload) {    //MQTT packet received
     default:
       break;
   }
+}
+
+
+//Functions to manage BST900 boost converter connected to Serial1
+// Empty input buffer
+
+void mqttProc::clear()  {       //clear bst buffer
+  for(uint8_t i=0 ; i<64; i++) bstbuf[i]=0;
+  indx=0;
+  return;
+}
+
+void mqttProc::serialFlush(){
+  while(Serial1.available() > 0) {
+    Serial1.read();
+  }
+  inputready = false;
+  clear();
+  return;
+}
+
+//Process data arriving on serial interface
+void mqttProc::bst_process() {
+  while(Serial1.available()) {
+    char character = Serial1.read();
+    if(character == '\r') continue;
+    if(character == '\n') {
+      if ( (bstbuf[indx-2]=='O' &&  bstbuf[indx-1]=='K' )|| (bstbuf[indx-2]=='E' &&  bstbuf[indx-1]=='!')) {
+        inputready = true;
+        Serial.println(bstbuf);
+        //Todo: send mqtt confirmation
+        clear();
+        return;
+      }
+      character = ' ';    //Replace LF with spaces
+    }
+    bstbuf[indx] = character;
+    indx +=1;
+    if (indx>63) clear();   //buffer overflow
+  }
+}
+
+
+// Establish contact with BST900
+boolean mqttProc::bst900_init() {
+  if (!Serial1) return false;
+  clear();
+  serialFlush();
+  Serial1.write('\n');
+  return true;
+}
+
+/* could be issues if bst fails to respond to a command
+ *  suggest putting sequence number on each message to assist with ensuring response.
+ *  Or else reflect command back with OK.
+ */
+
+//Disable boost converter output
+void mqttProc::stop_bst900() {
+  //if (bst_output_enabled == true) Serial.print("OUTPUT 0\n");
+  Serial1.print("OUTPUT 0\n");
+  Serial1.flush();
+  bst_output_enabled = false;
+}
+
+
+//Set charger current in Amps
+boolean mqttProc::setcurrent_bst900 () {
+  if ( bstcurrent == 0.0 ) {
+    stop_bst900();
+    return true;
+  }
+  char bstoutbuf[32];
+  sprintf(bstoutbuf, "CURRENT %3.2f OUTPUT 1\n", bstcurrent);
+  Serial.print("BST: "); Serial.println(bstoutbuf);   //debug
+  Serial1.print(bstoutbuf);
+  Serial1.flush();
+  bst_output_enabled = true;
+  return true;
+}
+
+//Send text string to BST900
+void mqttProc::bst_send_text(String text) {
+  Serial1.println(text);
 }

@@ -23,7 +23,8 @@
 #define INVERTER 13           //Alternative name
 #define ESP32_RELAY3 19       //Pin on expansion header
 #define INVERTER_PWM 18       //To control inverter output
-#define MAXDISCHARGE 170      //Maximum rate of inverter discharging
+#define MAXCHARGERATE 12.0      //Maximum rate of charger in Amps
+#define MAXDISCHARGE 170      //Max Inverter PWM output
 
 #define RELAY_STANDARD 0x00
 #define RELAY_PULSE 0x01

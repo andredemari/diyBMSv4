@@ -17,9 +17,19 @@ class mqttProc {
       void processCommand(char* payload);
       void sendModuleStatus(uint8_t bank, uint8_t module);
       void lostcomms();                    //timeout has expired
+
       bool mqttRelayControl;              //flag to signal relays are being controlled via mqtt
       bool active;                        //flag to signal mqtt command received
       uint8_t mqttRelay[RELAY_TOTAL];     //Relay status determined by mqtt commands
+
+      //Functions to manage BST900 boost converter
+      void bst_send_text(String text);
+      boolean setcurrent_bst900 ();
+      boolean bst900_init();
+      void bst_process();
+      void serialFlush();
+      bool inputready;      //BST900 ready
+
   private:
       uint8_t BypassOverTempShutdown;
       uint8_t dischargepower;
@@ -30,9 +40,14 @@ class mqttProc {
       float mVPerADC;
       float bstcurrent;       //Current to set external charger to
       float LoadResistance;
+      uint8_t indx;
       char value[256];        //Buffer for mqtt messages
 
-
+      //BST900
+      void stop_bst900();
+      void clear();
+      char bstbuf[64];
+      bool bst_output_enabled;
 
 };
 

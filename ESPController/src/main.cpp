@@ -386,7 +386,7 @@ void timerProcessRules() {
       for(uint8_t x=0; x<RELAY_TOTAL; x++) relay[x] = mqt.mqttRelay[x];
       if(mqt.active) {
         mqttTimeout.detach();
-        mqttTimeout.attach(30, mqtlostcomms);      //Reset the timeout
+        mqttTimeout.attach(120, mqtlostcomms);      //Reset the timeout
         mqt.active=false;   //clear the flag. It will be set again when another command arrives
       }
       continue;
@@ -894,6 +894,8 @@ void loop() {
   if (Serial2.available()) {
     myPacketSerial.update();
   }
+
+  if (Serial1.available()) mqt.bst_process();    //Data has arrived on serial interface from boost converter
 
   if (ConfigHasChanged>0) {
       //Auto reboot if needed (after changing MQTT or INFLUX settings)
