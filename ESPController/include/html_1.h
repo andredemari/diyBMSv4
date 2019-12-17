@@ -224,8 +224,9 @@ const char FILE_INDEX_HTML[] PROGMEM = R"=====(
     <p>'Minutes after' rules allow timed operation, this rule is active when the number of minutes past midnight has been reached,
     for instance 495 is 08:15am.  Use the combination of both rules to switch on and off.  This only works if connected to internet for time updates.</p>
     <p>Minutes since midnight now is: <span id='minutesnow'></span></p>
+    <p>Timer rules are ignored if MQTT commands are being received to control the relays remotely.</p>
     <p>Emergency stop is triggered by connector J1, once triggered controller needs to be reset to disable</p>
-    <div class="error" id='PCF8574'>PCF8574 is NOT fitted, relay control not possible!</div>
+    <!--<div class="error" id='PCF8574'>PCF8574 is NOT fitted, relay control not possible!</div>-->
     <form id="rulesForm" method="POST" action="saverules.json" autocomplete="off">
     <div class="settings">
 

@@ -41,9 +41,8 @@ void PacketRequestGenerator::sendSaveGlobalSetting(uint16_t BypassThresholdmV,ui
   }
 
   clearSettingsForAllModules();
-
-  _packetbuffer.moduledata[6]=BypassOverTempShutdown;
-  _packetbuffer.moduledata[7]=BypassThresholdmV;
+  if(BypassOverTempShutdown > 0) _packetbuffer.moduledata[6]=BypassOverTempShutdown;
+  if(BypassThresholdmV > 0) _packetbuffer.moduledata[7]=BypassThresholdmV;
 
   pushPacketToQueue();
 

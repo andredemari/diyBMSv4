@@ -3,7 +3,7 @@
 #ifndef DIYBMS_DEFINES_H_
 #define DIYBMS_DEFINES_H_
 
-#define GREEN_LED 18    //GPIO 18
+#define GREEN_LED 12    //GPIO 12
 
 #define GREEN_LED_ON digitalWrite(GREEN_LED,HIGH)
 #define GREEN_LED_OFF digitalWrite(GREEN_LED,LOW)
@@ -16,7 +16,14 @@
 
 #define RELAY_RULES 9
 //Number of relays on board (4)
-#define RELAY_TOTAL 4
+#define RELAY_TOTAL 3         //ESP32 has 2 relay outputs by default + 1 on expansion header
+#define ESP32_RELAY1 4       //GPIO PINS of ESP32 Relay outputs
+#define CHARGER 4            //Alternative name
+#define ESP32_RELAY2 13
+#define INVERTER 13           //Alternative name
+#define ESP32_RELAY3 19       //Pin on expansion header
+#define INVERTER_PWM 18       //To control inverter output
+#define MAXDISCHARGE 170      //Maximum rate of inverter discharging
 
 #define RELAY_STANDARD 0x00
 #define RELAY_PULSE 0x01
@@ -135,6 +142,8 @@ struct CellModuleInfo {
   uint16_t External_BCoefficient;
 
 };
+
+
 
 //This holds all the cell information in a large array 2D array (4x16)
 extern CellModuleInfo cmi[maximum_bank_of_modules][maximum_cell_modules];

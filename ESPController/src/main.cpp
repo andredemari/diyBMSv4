@@ -14,14 +14,18 @@
 
 
    PINS
-   D0 = GREEN_LED  = ESP32 GPIO 18
-   D1 = i2c SDA   = ESP32 GPIO 21
-   D2 = i2c SCL   = ESP32 GPIO 22
-   D3 = switch to ground (reset WIFI configuration on power up) = ESP32 GPIO 14
-   D4 = GPIO2 = TXD1 = TRANSMIT DEBUG SERIAL (and blue led on esp8266)
-   D5 = GPIO14 = Interrupt in from PCF8574  = ESP32 GPIO 27
-   D7 = GPIO13 = RECEIVE SERIAL
-   D8 = GPIO15 = TRANSMIT SERIAL
+   GREEN_LED  = ESP32 GPIO 12
+   i2c SDA   = ESP32 GPIO 32
+   i2c SCL   = ESP32 GPIO 33
+   switch to ground (reset WIFI configuration on power up) = ESP32 GPIO 34
+   Interrupt in from PCF8574  = ESP32 GPIO 35
+   PWM output to inverter = ESP32 GPIO 18
+   ESP32_RELAY1 (CHARGER) 4       //GPIO PINS of ESP32 Relay outputs
+   ESP32_RELAY2 (INVERTER) 13
+   ESP32_RELAY3 19      //On expansion header
+   Serial 0 DEBUG
+   Serial 1  Charger Controller
+   Serial 2   To Cell Modules
 
 
    DIAGRAM
@@ -76,6 +80,8 @@ bool previousRelayPulse[RELAY_TOTAL];
 //PCF8574P has an i2c address of 0x38 instead of the normal 0x20
 PCF857x pcf8574(0x38, &Wire);
 
+//Map GPIO pins to relays
+uint8_t ESP32_relays[RELAY_TOTAL] = {ESP32_RELAY1, ESP32_RELAY2, ESP32_RELAY3};
 volatile bool PCFInterruptFlag = false;
 
 void ICACHE_RAM_ATTR PCFInterrupt() {
@@ -126,7 +132,7 @@ Ticker myTimerSendMqttPacket;
 Ticker myTimerSendInfluxdbPacket;
 
 Ticker myTimerSwitchPulsedRelay;
-
+Ticker mqttTimeout;         //Times out if mqtt communication lost with node-red
 
 uint16_t sequence=0;
 
@@ -330,7 +336,8 @@ void timerSwitchPulsedRelay() {
         //We now need to rapidly turn off the relay after a fixed period of time (pulse mode)
         //However we leave the relay and previousRelayState looking like the relay has triggered (it has!)
         //to prevent multiple pulses being sent on each rule refresh
-        pcf8574.write(y, previousRelayState[y]==HIGH ? LOW:HIGH);
+        if(PCF8574Enabled) pcf8574.write(y, previousRelayState[y]==HIGH ? LOW:HIGH);
+          else digitalWrite(ESP32_relays[y], previousRelayState[y]==HIGH ? LOW:HIGH);
 
       previousRelayPulse[y]=false;
     }
@@ -340,6 +347,9 @@ void timerSwitchPulsedRelay() {
   myTimerSwitchPulsedRelay.detach();
 }
 
+void mqtlostcomms() {   //callback when mqtt timeout timer expires
+  mqt.lostcomms();
+}
 
 void timerProcessRules() {
 
@@ -355,19 +365,33 @@ void timerProcessRules() {
   {
     Serial.print(rule_outcome[r]);
   }
-  Serial.print("=");
+  Serial.print(" = ");
 
   uint8_t relay[RELAY_TOTAL];
 
   //Set defaults based on configuration
   for (int8_t y = 0; y<RELAY_TOTAL; y++)
   {
-    relay[y]=  mysettings.rulerelaydefault[y]==RELAY_ON ? LOW:HIGH;
+    if(PCF8574Enabled) relay[y]=  mysettings.rulerelaydefault[y]==RELAY_ON ? LOW:HIGH;    //Inverse logic
+    else relay[y]=  mysettings.rulerelaydefault[y]==RELAY_ON ? HIGH:LOW;
   }
 
   //Test the rules (in reverse order)
   for (int8_t n = RELAY_RULES-1; n>=0; n--)
   {
+
+    //Rules 8 and 9 are ignored if MQTT commands are controlling the relays
+    //Rules 1 to 7 are prioritised ahead of MQTT commands
+    if (mqt.mqttRelayControl && n>6) {  //MQTT is in control of the relays
+      for(uint8_t x=0; x<RELAY_TOTAL; x++) relay[x] = mqt.mqttRelay[x];
+      if(mqt.active) {
+        mqttTimeout.detach();
+        mqttTimeout.attach(30, mqtlostcomms);      //Reset the timeout
+        mqt.active=false;   //clear the flag. It will be set again when another command arrives
+      }
+      continue;
+    }
+
     if (rule_outcome[n]==true) {
 
       for (int8_t y = 0; y<RELAY_TOTAL; y++)
@@ -376,44 +400,43 @@ void timerProcessRules() {
         if (mysettings.rulerelaystate[n][y]!=RELAY_X) {
             //Logic is inverted on the PCF chip
             if (mysettings.rulerelaystate[n][y]==RELAY_ON) {
-              relay[y]=LOW;
+              relay[y]=(PCF8574Enabled) ? LOW : HIGH;     //Inverse logic if PCF8574 is fitted
             } else {
-              relay[y]=HIGH;
+              relay[y]=(PCF8574Enabled) ? HIGH : LOW;
             }
         }
       }
     }
   }
 
-  if (PCF8574Enabled) {
-    //Perhaps we should publish the relay settings over MQTT and INFLUX/website?
-    for (int8_t n = 0; n<RELAY_TOTAL; n++)
-    {
-      if (previousRelayState[n]!=relay[n]) {
-        //Would be better here to use the WRITE8 to lower i2c traffic
-        Serial.print("Relay:");
-        Serial.print(n);
-        Serial.print("=");
-        Serial.print(relay[n]);
 
-        //Set the relay
-        pcf8574.write(n, relay[n]);
-
-        previousRelayState[n]=relay[n];
-
-        if (mysettings.relaytype[n]==RELAY_PULSE) {
-          //If its a pulsed relay, invert the output quickly via a one time only timer
-          previousRelayPulse[n]=true;
-          myTimerSwitchPulsedRelay.attach(0.1, timerSwitchPulsedRelay);
-          Serial.print("P");
+  //Perhaps we should publish the relay settings over MQTT and INFLUX/website?
+  for (int8_t n = 0; n<RELAY_TOTAL; n++)
+  {
+    Serial.print(" Relay");
+    Serial.print(n);
+    if (mqt.mqttRelayControl) Serial.print("M");        //Indicate MQTT has control
+    Serial.print(" = ");
+    Serial.print(relay[n]);Serial.print(" ");
+    if (previousRelayState[n]!=relay[n]) {
+      //Would be better here to use the WRITE8 to lower i2c traffic
+      Serial.print("**Changed**");    //Changed
+      //Set the relay
+      if (PCF8574Enabled) pcf8574.write(n, relay[n]);
+        else {    //If PFC8574 not fitted use ESP32 pins instead
+          digitalWrite(ESP32_relays[n], relay[n]);
         }
-      }
+      previousRelayState[n]=relay[n];
 
+      if (mysettings.relaytype[n]==RELAY_PULSE) {
+        //If its a pulsed relay, invert the output quickly via a one time only timer
+        previousRelayPulse[n]=true;
+        myTimerSwitchPulsedRelay.attach(0.1, timerSwitchPulsedRelay);
+        Serial.print("P");
+      }
     }
-    Serial.println("");
-  } else {
-    Serial.println("N/F");
   }
+  Serial.println("");
 
 }
 
@@ -602,19 +625,13 @@ void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
   }
 }
 
-
 void sendMqttPacket() {
   if (!mysettings.mqtt_enabled) return;
 
   Serial.println("Sending MQTT");
-
-  char value[127];
-
   for (uint8_t bank = 0; bank < 4; bank++) {
     for (uint8_t i = 0; i < numberOfModules[bank]; i++) {
-      int address = bank*16+i;
-      sprintf(value, "{\"address\":%d,\"volts\":%d,\"temp\":%d,\"exttemp\":%d,\"bypass\":%d}", address, cmi[bank][i].voltagemV, cmi[bank][i].internalTemp,cmi[bank][i].externalTemp,cmi[bank][i].inBypass);
-      mqttClient.publish(MQTTSUBJECT, 0, true, value);
+      mqt.sendModuleStatus(bank, i);
     }
   }
 }
@@ -699,11 +716,11 @@ void setup() {
   //Serial2 is used for communication to modules, Serial is for debug output
   //Serial1 is for BST900 Control
   pinMode(GREEN_LED, OUTPUT);
-  //GPIO 19 is used to reset access point WIFI details on boot up
-  pinMode(19,INPUT_PULLUP);
-  //GPIO 23 is interrupt pin from PCF8574
-  pinMode(23,INPUT_PULLUP);
-
+  //GPIO 34 is used to reset access point WIFI details on boot up
+  pinMode(34,INPUT_PULLUP);
+  //GPIO 35 is interrupt pin from PCF8574
+  pinMode(35,INPUT_PULLUP);
+  mqt.begin();    //Initialise mtqq variables
   //Fix for issue 5, delay for 3 seconds on power up with green LED lit so
   //people get chance to jump WIFI reset pin (d3)
   GREEN_LED_ON;
@@ -768,22 +785,25 @@ void setup() {
     pcf8574.write(6, HIGH);
     pcf8574.write(7, HIGH);
 
-    //Set relay defaults
-    for (int8_t y = 0; y<RELAY_TOTAL; y++)
-    {
-        previousRelayState[y]= mysettings.rulerelaydefault[y]==RELAY_ON ? LOW:HIGH;
-         pcf8574.write(y,previousRelayState[y]);
-    }
     PCF8574Enabled=true;
   } else {
     //Not fitted
     Serial.println("pcf8574 not fitted");
     PCF8574Enabled=false;
   }
+  //Set relay defaults
+  for (int8_t y = 0; y<RELAY_TOTAL; y++)
+  {
+      previousRelayState[y]= mysettings.rulerelaydefault[y]==RELAY_ON ? LOW:HIGH;
+       if(PCF8574Enabled) pcf8574.write(y,previousRelayState[y]);
+        else digitalWrite(ESP32_relays[y],previousRelayState[y]);
+  }
 
   //internal pullup-resistor on the interrupt line via ESP8266
-  pcf8574.resetInterruptPin();
-  attachInterrupt(digitalPinToInterrupt(27), PCFInterrupt, FALLING);    // for esp32
+  if(PCF8574Enabled) {
+    pcf8574.resetInterruptPin();
+    attachInterrupt(digitalPinToInterrupt(27), PCFInterrupt, FALLING);    // for esp32
+  }
 
   //Ensure we service the cell modules every 4 seconds
   myTimer.attach(4, timerEnqueueCallback);
