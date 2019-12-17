@@ -3,6 +3,8 @@
 This is my port of Stuart Pittaway's excellent diyBMS ver 4 project
 
 In this port the ESP8266 Controller has been replaced by an ESP32 and various changes have been made to support my local needs.
+If you are looking for a straight port to ESP32 of Stuart's project, check out the 'Vanilla' branch.
+Note: Because of the way serial ports work in ESP32, the Cell module firmware from this fork must be used. Cell modules programmed with the original firmware will not work.
 
 Main changes are :-
 * New Controller PCB design with ESP32 module ( a Lolin 32 Lite easily available on AliExpress)
@@ -16,7 +18,8 @@ https://www.ti.com/lit/ds/symlink/ina226.pdf
 * Management of Controller via MQTT commands from Node-Red.
 
 Stuart's original README follows
-  ##################################################################
+
+##################################################################
  
 Version 4 of the diyBMS
 
