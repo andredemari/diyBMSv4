@@ -5,8 +5,8 @@ $Descr A4 11693 8268
 encoding utf-8
 Sheet 1 1
 Title "ESP32 diyBMS Controller"
-Date "2019-12-15"
-Rev "1.0"
+Date "2019-12-19"
+Rev "1.1"
 Comp "Derek Jennings"
 Comment1 ""
 Comment2 ""
@@ -57,14 +57,10 @@ F 3 "http://www.wemos.cc/Products/d1_mini.html" H 8300 3975 60  0000 C CNN
 	1    7850 4500
 	1    0    0    -1  
 $EndComp
-Text GLabel 6975 4050 0    50   Input ~ 0
+Text GLabel 7350 4550 0    50   Input ~ 0
 SDA
-Text GLabel 7200 4150 0    50   Input ~ 0
+Text GLabel 7350 4450 0    50   Input ~ 0
 SCL
-Wire Wire Line
-	6975 4050 7350 4050
-Wire Wire Line
-	7200 4150 7350 4150
 Text GLabel 6975 4250 0    50   Input ~ 0
 TX1
 Wire Wire Line
@@ -672,8 +668,6 @@ Wire Wire Line
 NoConn ~ 7350 3550
 NoConn ~ 7350 3650
 NoConn ~ 7350 3750
-NoConn ~ 7350 4450
-NoConn ~ 7350 4550
 NoConn ~ 8650 3650
 NoConn ~ 8650 4050
 NoConn ~ 8650 4450
@@ -1102,4 +1096,6 @@ Wire Wire Line
 	2125 3775 2375 3775
 Wire Wire Line
 	2875 3675 3000 3675
+NoConn ~ 7350 4150
+NoConn ~ 7350 4050
 $EndSCHEMATC
