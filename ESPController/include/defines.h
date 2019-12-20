@@ -5,6 +5,10 @@
 
 #define GREEN_LED 12    //GPIO 12
 
+#define SDA 14    //I2C pins (chosen so as not to corrupt Flash)
+#define SCL 27
+#define CLEARAPSETTINGS 23      //Pin on expansion header
+
 #define GREEN_LED_ON digitalWrite(GREEN_LED,HIGH)
 #define GREEN_LED_OFF digitalWrite(GREEN_LED,LOW)
 
@@ -25,6 +29,7 @@
 #define INVERTER_PWM 18       //To control inverter output
 #define MAXCHARGERATE 12.0      //Maximum rate of charger in Amps
 #define MAXDISCHARGE 170      //Max Inverter PWM output
+#define SHUNT 1500            //Define shunt resistance in micro ohms
 
 #define RELAY_STANDARD 0x00
 #define RELAY_PULSE 0x01
@@ -34,6 +39,7 @@
 
 #define HOSTNAME "diybmsv4"
 #define MQTTSUBJECT "diybmsv4"
+
 
 
 struct diybms_eeprom_settings {

@@ -58,7 +58,6 @@
 
 #include "defines.h"
 
-
 bool PCF8574Enabled;
 volatile bool emergencyStop=false;
 bool rule_outcome[RELAY_RULES];
@@ -636,12 +635,13 @@ void sendMqttPacket() {
       mqt.sendModuleStatus(bank, i);
     }
   }
+  mqt.updatebus();    //Send Bus voltage/current
 }
 
 void onMqttConnect(bool sessionPresent) {
   Serial.println("Connected to MQTT.");
   mqttClient.subscribe("diybms_command", 0);
-  myTimerSendMqttPacket.attach(30, sendMqttPacket);
+  myTimerSendMqttPacket.attach(20, sendMqttPacket);
 }
 
 void onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
@@ -662,7 +662,7 @@ void LoadConfiguration() {
     mysettings.mqtt_port=1883;
 
     //Default to EMONPI default MQTT settings
-    strcpy(mysettings.mqtt_server,"192.168.0.26");
+    strcpy(mysettings.mqtt_server,"192.168.1.4");
     strcpy(mysettings.mqtt_username,"emonpi");
     strcpy(mysettings.mqtt_password,"emonpimqtt2016");
 
@@ -704,12 +704,12 @@ void LoadConfiguration() {
     //9. Minutes after 1
     mysettings.rulevalue[index++]=60*17;  //5pm
 
-    //Set all relays to don't care
+    //Set all relays to OFF
     for (size_t i = 0; i < RELAY_RULES; i++) {
       for (size_t x = 0; x < RELAY_TOTAL; x++) {
-        mysettings.rulerelaystate[i][x]=RELAY_X;
-        mysettings.rulerelaystate[i][x]=RELAY_X;
-        mysettings.rulerelaystate[i][x]=RELAY_X;
+        mysettings.rulerelaystate[i][x]=RELAY_OFF;
+        mysettings.rulerelaystate[i][x]=RELAY_OFF;
+        mysettings.rulerelaystate[i][x]=RELAY_OFF;
       }
     }
 }
@@ -718,8 +718,8 @@ void setup() {
   //Serial2 is used for communication to modules, Serial is for debug output
   //Serial1 is for BST900 Control
   pinMode(GREEN_LED, OUTPUT);
-  //GPIO 34 is used to reset access point WIFI details on boot up
-  pinMode(34,INPUT_PULLUP);
+  //GPIO 23 is used to reset access point WIFI details on boot up
+  pinMode(CLEARAPSETTINGS,INPUT_PULLUP);
   //GPIO 35 is interrupt pin from PCF8574
   pinMode(35,INPUT_PULLUP);
   mqt.begin();    //Initialise mtqq variables
@@ -727,8 +727,8 @@ void setup() {
   //people get chance to jump WIFI reset pin (d3)
   GREEN_LED_ON;
   delay(3000);
-  //This is normally pulled high, GPIO14 is used to reset WIFI details
-  uint8_t clearAPSettings=digitalRead(14);
+  //This is normally pulled high, GPIO23 is used to reset WIFI details
+  uint8_t clearAPSettings=digitalRead(CLEARAPSETTINGS);
   GREEN_LED_OFF;
 
   //We generate a unique number which is used in all following JSON requests
@@ -771,7 +771,7 @@ void setup() {
   //SDA / SCL
   //I'm sure this should be 4,5 !
   //Wire.begin(5,4);
-  Wire.begin(21,22);    // For ESP32
+  Wire.begin(SDA,SCL);    // For ESP32
   Wire.setClock(100000L);
 
   //Make PINs 4-7 INPUTs - the interrupt fires when triggered
@@ -807,6 +807,7 @@ void setup() {
     attachInterrupt(digitalPinToInterrupt(27), PCFInterrupt, FALLING);    // for esp32
   }
 
+  mqt.initINA();         //Search for INA226 devices
   //Ensure we service the cell modules every 4 seconds
   myTimer.attach(4, timerEnqueueCallback);
 
@@ -853,6 +854,7 @@ void setup() {
         Serial.println("MQTT Enabled");
         mqttClient.setServer(mysettings.mqtt_server, mysettings.mqtt_port);
         mqttClient.setCredentials(mysettings.mqtt_username,mysettings.mqtt_password);
+        mqttClient.setMaxTopicLength(256);
       }
 
       connectToWifi();

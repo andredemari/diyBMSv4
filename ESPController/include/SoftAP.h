@@ -14,7 +14,8 @@
 #include "settings.h"
 
 //Where in EEPROM do we store the configuration
-#define EEPROM_WIFI_START_ADDRESS 0
+//#define EEPROM_WIFI_START_ADDRESS 0
+#define EEPROM_WIFI_START_ADDRESS 16    //Save 16 bytes at start of EEPROM for INA library
 
 struct wifi_eeprom_settings {
   char wifi_ssid[32 + 1];

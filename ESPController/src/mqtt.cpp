@@ -1,10 +1,12 @@
 #include <Arduino.h>
 #include "mqtt.h"
 #include "ArduinoJson.h"
-#include "defines.h"
+//#include "defines.h"
 #include <AsyncMqttClient.h>
 #include "PacketRequestGenerator.h"
 #include "settings.h"
+#include <INA.h>
+#include <Wire.h>
 
 
 
@@ -39,7 +41,7 @@ void mqttProc::lostcomms() {          //Timer has expired without a valid MQTT c
 void mqttProc::processCommand(char* payload) {    //MQTT packet received
   Serial.print("MQTT Command received : ");
   Serial.println(payload);
-  StaticJsonDocument<256> mqtt_json;
+  StaticJsonDocument<512> mqtt_json;
   // Deserialize the JSON document
   DeserializationError error = deserializeJson(mqtt_json, payload);
   // Test if parsing succeeds.
@@ -232,4 +234,232 @@ boolean mqttProc::setcurrent_bst900 () {
 //Send text string to BST900
 void mqttProc::bst_send_text(String text) {
   Serial1.println(text);
+}
+
+
+
+//Functions to manage INA226 current/voltage sensor
+
+bool mqttProc::initINA() {
+  //Setup INA current sensor
+  INAdetected = INA.begin(20,SHUNT);                               // Set expected 20 Amp max and resistor 1.5 mohm   //
+  if (INAdetected == 0) return false;
+  Serial.print(INAdetected); Serial.println(" INA devices detected");
+  INA.setBusConversion(10000);                                                 // Maximum conversion time 8.244ms  //
+  INA.setShuntConversion(10000);                                               // Maximum conversion time 8.244ms  //
+  INA.setAveraging(1024);                                                     // Average each reading n-times     //
+  INA.setMode(INA_MODE_CONTINUOUS_BOTH);                                      // Bus/shunt measured continuously
+  String bus_readings= "";
+  bus_readings += String(INA.getDeviceName()) + "  ";
+  bus_readings += String((float)INA.getBusMilliVolts()/1000.0) + " V  ";    // convert mV to Volts
+  bus_readings += String((float)INA.getBusMicroAmps()/1000.0) + " mA  ";     // convert uA to Milliamps
+  bus_readings += String((float)INA.getBusMicroWatts() / 1000.0) + " mW  "; // convert uA to Milliwatts
+  Serial.println(bus_readings);
+  return true;
+}
+
+
+//Send bus voltage/current to MQTT
+void mqttProc::updatebus() {
+  if(INAdetected == 0) return;
+
+  StaticJsonDocument<512> buffer;
+
+  //Read INA226 sensor
+  bus_voltage = ina_correction * INA.getBusMilliVolts()/1000.0;
+  bus_amps = (float)INA.getBusMicroAmps()/1000000.0;
+  bus_watts = bus_amps*bus_voltage;
+  char bus_readings[64];
+  bus_watts = (int)(bus_watts*100)/100.0;
+  bus_voltage = (int)(bus_voltage*100)/100.0;
+  bus_amps = (int)(bus_amps*100)/100.0;
+  sprintf(bus_readings, "Bus %3.2fV, %3.2fA, %3.2fW", bus_voltage, bus_amps, bus_watts);
+  Serial.println(bus_readings);
+
+  buffer["busvolts"] = bus_voltage;
+  buffer["busamps"] = bus_amps;
+  buffer["buswatts"] = bus_watts;
+  buffer["charging"] = digitalRead(CHARGER);      //Read the relay state
+  buffer["discharging"] = digitalRead(INVERTER);
+
+  //Reset INA after each reading to avoid lockups
+  //Is this needed any longer?
+  //INA.reset();
+  //INA.setBusConversion(10000);                                                 // Maximum conversion time 8.244ms  //
+  //INA.setShuntConversion(10000);                                               // Maximum conversion time 8.244ms  //
+  //INA.setAveraging(1024);                                                   // Average each reading n-times     //
+  //INA.setMode(INA_MODE_CONTINUOUS_BOTH);
+
+  //Now read AC Power Monitor readings
+  float powerMonitorTemp= read_float_from_i2c(PMON_ADDRESS, READ_tempA);
+  float powerfactor= read_float_from_i2c(PMON_ADDRESS, READ_powerfactor);
+  float power= read_float_from_i2c(PMON_ADDRESS, READ_power);
+  float vrms= read_float_from_i2c(PMON_ADDRESS, READ_vrms);
+  float irms= read_float_from_i2c(PMON_ADDRESS, READ_irms);
+
+  if(get_fan_data()) {              //Read data from fan controller. If data sane include in mqtt message
+    buffer["f_alarm"] = fan_alarm;
+    buffer["f1_spd"] = fan_speed[0];
+    buffer["f2_spd"] = fan_speed[1];
+    buffer["f3_spd"] = fan_speed[2];
+    if(isnan(fan_temperature[0])) buffer["f1_temp"] = fan_temperature[0];
+    if(isnan(fan_temperature[1])) buffer["f2_temp"] = fan_temperature[1];
+    if(isnan(fan_temperature[2])) buffer["f3_temp"] = fan_temperature[2];
+    buffer["pmon_temp"] = powerMonitorTemp;
+    buffer["power"] = power;
+    buffer["vrms"] = vrms;
+    buffer["irms"] = irms;
+    buffer["pfact"] = powerfactor;
+  }
+
+  char output[512];
+  serializeJson(buffer, output);
+  //mqttClient.publish(MQTTSUBJECT, 0, true, output);
+  mqttClient.publish("diybms_temp", 0, true, output);        //Todo: Replace with correct Topic
+  return;
+}
+
+//Functions to manage I2C bus
+//(From Stuart Pittaways's diyBMS ver3)
+
+uint8_t  mqttProc::send_command(uint8_t i2c_address, uint8_t cmd) {
+  Wire.beginTransmission(i2c_address); // transmit to device
+  Wire.write(cmd);  //Command configure device address
+  uint8_t ret = Wire.endTransmission();  // stop transmitting
+  return ret;
+}
+
+uint8_t  mqttProc::send_command(uint8_t i2c_address, uint8_t cmd, uint8_t byteValue) {
+  Wire.beginTransmission(i2c_address); // transmit to device
+  Wire.write(cmd);  //Command configure device address
+  Wire.write(byteValue);  //Value
+  uint8_t ret = Wire.endTransmission();  // stop transmitting
+  return ret;
+}
+
+uint8_t  mqttProc::send_command(uint8_t i2c_address, uint8_t cmd, float floatValue) {
+  float_to_bytes.val = floatValue;
+  Wire.beginTransmission(i2c_address); // transmit to device
+  Wire.write(cmd);  //Command configure device address
+  Wire.write(float_to_bytes.buffer[0]);
+  Wire.write(float_to_bytes.buffer[1]);
+  Wire.write(float_to_bytes.buffer[2]);
+  Wire.write(float_to_bytes.buffer[3]);
+  uint8_t ret = Wire.endTransmission();  // stop transmitting
+  return ret;
+}
+
+uint8_t mqttProc::send_command(uint8_t i2c_address, uint8_t cmd, uint16_t Value) {
+  uint16_t_to_bytes.val = Value;
+  Wire.beginTransmission(i2c_address); // transmit to device
+  Wire.write(cmd);  //Command configure device address
+  Wire.write(uint16_t_to_bytes.buffer[0]);
+  Wire.write(uint16_t_to_bytes.buffer[1]);
+  uint8_t ret = Wire.endTransmission();  // stop transmitting
+  return ret;
+}
+
+uint8_t mqttProc::cmdByte(uint8_t cmd) {
+  bitSet(cmd, COMMAND_BIT);
+  return cmd;
+}
+
+
+uint16_t mqttProc::read_uint16_from_i2c(uint8_t i2c_address, uint8_t cmd) {
+  send_command(i2c_address, cmd);
+  i2cstatus = Wire.requestFrom((uint8_t)i2c_address, (uint8_t)2);
+  return (word((uint8_t)Wire.read(), (uint8_t)Wire.read()));
+}
+
+uint8_t mqttProc::read_uint8_t_from_i2c(uint8_t i2c_address, uint8_t cmd) {
+  send_command(i2c_address, cmd);
+  i2cstatus = Wire.requestFrom((uint8_t)i2c_address, (uint8_t)1);
+  return (uint8_t)Wire.read();
+}
+
+float mqttProc::read_float_from_i2c(uint8_t i2c_address, uint8_t cmd) {
+  send_command(i2c_address, cmd);
+  i2cstatus = Wire.requestFrom((uint8_t)i2c_address, (uint8_t)4);
+  float_to_bytes.buffer[0] = (uint8_t)Wire.read();
+  float_to_bytes.buffer[1] = (uint8_t)Wire.read();
+  float_to_bytes.buffer[2] = (uint8_t)Wire.read();
+  float_to_bytes.buffer[3] = (uint8_t)Wire.read();
+  return float_to_bytes.val;
+}
+
+
+//Functions to manage I2C fan controller
+//======================================
+// The I2C fan controller is on address 19. It has an STM32 with which it can control three fans
+//Fan1 is for the Cisco 1300W Power Supply at 40V
+//Fan2 is for the BST900 boost converter MOSFET/Diodes
+//Fan 3 is for the BST900 coil
+//Each fan has a temperature sensor associated with it.
+//The STM32 runs PID algorithms  for each fan circuit.
+
+//PWM fan controller commands
+
+bool mqttProc::get_fan_data() {
+  fan_alarm = read_uint8_t_from_i2c(FAN_ADDRESS, PWM_READ_fan_alarm);
+  if(fan_alarm == 0xff) return false;     //Not sane data
+  for(uint8_t i=0; i< 3; i++ ) {
+    read_fan_speed(i);
+    read_fan_temperature(i);
+  }
+
+  return true;
+}
+
+void mqttProc::pwm_command_save_config() {
+  send_command(FAN_ADDRESS, cmdByte( PWM_COMMAND_save_config ));
+  return;
+}
+
+void mqttProc::pwm_command_factory_reset() {
+  send_command(FAN_ADDRESS, cmdByte( PWM_COMMAND_factory_default ));
+  return;
+}
+
+float mqttProc::read_fan_temperature(uint8_t fan) {
+  if (fan >2 ) return -1;
+  fan_temperature[fan] = read_float_from_i2c(FAN_ADDRESS, PWM_READ_temperature | (fan << 4)); //bits 4 and 5 contain device
+  if(isnan(fan_temperature[fan] )) return false;
+  return fan_temperature[fan];
+}
+
+uint16_t mqttProc::read_fan_speed(uint8_t fan) {
+  if (fan > 2 ) return 65535;
+  fan_speed[fan] = read_uint16_from_i2c(FAN_ADDRESS, PWM_READ_fan_speed | (fan << 4));
+  return fan_speed[fan];
+}
+
+uint8_t mqttProc::command_set_override_fan(uint8_t fan, uint16_t  value) {
+  return send_command(FAN_ADDRESS, cmdByte(PWM_COMMAND_set_override_fan | (fan << 4)), value);
+}
+
+uint8_t mqttProc::command_set_temperature_threshold(uint8_t fan, float value) {
+  if (fan > 2 ) return 255;
+  return send_command(FAN_ADDRESS, cmdByte(PWM_COMMAND_set_temperature_threshold | (fan << 4) ), value);
+}
+
+//Functions for AC power monitor
+//==============================
+//The AC Power Monitor is an STM32 which has a current sense transformer with which it can measure
+//AC Voltage/Current/Power, and Powerfactor
+//of the Power Supply Unit and the Inverter
+
+uint8_t mqttProc::SetACVoltCalib(float value) {
+  return send_command(PMON_ADDRESS, cmdByte(COMMAND_set_ACvoltage_calibration), value);
+}
+
+uint8_t mqttProc::SetACCurrentCalib(float value){
+  return send_command(PMON_ADDRESS, cmdByte(COMMAND_set_ACcurrent_calibration), value);
+}
+
+float mqttProc::read_powmon_voltcalib(){
+  return read_float_from_i2c(PMON_ADDRESS, READ_ACvoltage_calibration);
+}
+
+float mqttProc::read_powmon_currcalib(){
+  return read_float_from_i2c(PMON_ADDRESS, READ_ACcurrent_calibration);
 }
