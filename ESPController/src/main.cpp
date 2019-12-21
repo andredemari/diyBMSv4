@@ -650,7 +650,7 @@ void onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties 
 
 void LoadConfiguration() {
 
-  if (Settings::ReadConfigFromEEPROM((char*)&mysettings, sizeof(mysettings), EEPROM_SETTINGS_START_ADDRESS)) return;
+  if (Settings::ReadConfigFromPreferences((char*)&mysettings, sizeof(mysettings))) return;
 
     Serial.println("Apply default config");
 
@@ -658,7 +658,7 @@ void LoadConfiguration() {
     mysettings.combinationParallel=true;
 
     //EEPROM settings are invalid so default configuration
-    mysettings.mqtt_enabled=false;
+    mysettings.mqtt_enabled=true;
     mysettings.mqtt_port=1883;
 
     //Default to EMONPI default MQTT settings
@@ -694,9 +694,9 @@ void LoadConfiguration() {
     //4. Individual cell under voltage
     mysettings.rulevalue[index++]=3000;
     //5. Individual cell over temperature (external probe)
-    mysettings.rulevalue[index++]=55;
+    mysettings.rulevalue[index++]=40;
     //6. Pack over voltage (mV)
-    mysettings.rulevalue[index++]=16000;
+    mysettings.rulevalue[index++]=44000;
     //7. Pack under voltage (mV)
     mysettings.rulevalue[index++]=12000;
     //8. Minutes after 2
@@ -707,9 +707,9 @@ void LoadConfiguration() {
     //Set all relays to OFF
     for (size_t i = 0; i < RELAY_RULES; i++) {
       for (size_t x = 0; x < RELAY_TOTAL; x++) {
-        mysettings.rulerelaystate[i][x]=RELAY_OFF;
-        mysettings.rulerelaystate[i][x]=RELAY_OFF;
-        mysettings.rulerelaystate[i][x]=RELAY_OFF;
+        mysettings.rulerelaystate[i][x]=RELAY_X;
+        mysettings.rulerelaystate[i][x]=RELAY_X;
+        mysettings.rulerelaystate[i][x]=RELAY_X;
       }
     }
 }
@@ -821,7 +821,7 @@ void setup() {
   //wifi_eeprom_settings xxxx;
   //strcpy(xxxx.wifi_ssid,"XXXXXXXXXXXXXXXXX");
   //strcpy(xxxx.wifi_passphrase,"XXXXXXXXXXXXXX");
-  //Settings::WriteConfigToEEPROM((char*)&xxxx, sizeof(xxxx), EEPROM_WIFI_START_ADDRESS);
+  //Settings::WriteWiFiConfigToPreferences((char*)&xxxx, sizeof(xxxx));
 
   if (!DIYBMSSoftAP::LoadConfigFromEEPROM() || clearAPSettings==0) {
       Serial.print("Clear AP settings");

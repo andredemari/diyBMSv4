@@ -8,7 +8,6 @@
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 
-#include <EEPROM.h>
 
 #include "settings.h"
 #include "ArduinoJson.h"

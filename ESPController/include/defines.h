@@ -12,8 +12,6 @@
 #define GREEN_LED_ON digitalWrite(GREEN_LED,HIGH)
 #define GREEN_LED_OFF digitalWrite(GREEN_LED,LOW)
 
-#define EEPROM_SETTINGS_START_ADDRESS 256
-
 #define RELAY_ON 0xFF
 #define RELAY_OFF 0x99
 #define RELAY_X 0x00

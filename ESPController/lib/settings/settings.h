@@ -18,20 +18,27 @@ https://creativecommons.org/licenses/by-nc-sa/2.0/uk/
 * No additional restrictions — You may not apply legal terms or technological measures
   that legally restrict others from doing anything the license permits.
 
+Modified by Derek Jennings Dec '19 for ESP32 using 'Preferences' library.
+
+
+
 ATTiny841 data sheet
 http://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-8495-8-bit-AVR-Microcontrollers-ATtiny441-ATtiny841_Datasheet.pdf
 */
 
-#include <EEPROM.h>
+//#include <EEPROM.h>
+#include <Preferences.h>
 
 #include "crc16.h"
 
-#define EEPROM_storageSize 1024
+//#define EEPROM_storageSize 1024
 
 class Settings {
    public:
-      static void WriteConfigToEEPROM(char* settings, int size, uint16_t eepromStartAddress);
-      static bool ReadConfigFromEEPROM(char* settings, int size, uint16_t eepromStartAddress);
-      static void FactoryDefault(int size,uint16_t eepromStartAddress);
+      static void WriteWiFiConfigToPreferences(char* settings, int size);
+      static void WriteConfigToPreferences(char* settings, int size);
+      static bool ReadConfigFromPreferences(char* settings, int size);
+      static bool ReadWiFiConfigFromPreferences(char* settings, int size);
+      static void PreferencesFactoryDefault();
 };
 #endif
