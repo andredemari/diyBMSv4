@@ -125,7 +125,7 @@ void DIYBMSServer::saveInfluxDBSetting(AsyncWebServerRequest *request) {
     p1->value().toCharArray(mysettings.influxdb_password,sizeof(mysettings.influxdb_password));
   }
 
-  Settings::WriteConfigToPreferences((char*)&mysettings, sizeof(mysettings));
+  Settings::WriteConfigToPreferences((char*)&mysettings, sizeof(mysettings), "myprefs");
 
   ConfigHasChanged = REBOOT_COUNT_DOWN;
   SendSuccess(request);
@@ -195,7 +195,7 @@ void DIYBMSServer::saveRuleConfiguration(AsyncWebServerRequest *request) {
 
 //RELAY_TOTAL
 
-  Settings::WriteConfigToPreferences((char*)&mysettings, sizeof(mysettings));
+  Settings::WriteConfigToPreferences((char*)&mysettings, sizeof(mysettings), "myprefs");
 
   SendSuccess(request);
 }
@@ -225,7 +225,7 @@ void DIYBMSServer::saveNTP(AsyncWebServerRequest *request) {
     mysettings.daylight =p1->value().equals("on") ? true:false;
   }
 
-  Settings::WriteConfigToPreferences((char*)&mysettings, sizeof(mysettings));
+  Settings::WriteConfigToPreferences((char*)&mysettings, sizeof(mysettings), "myprefs");
 
   ConfigHasChanged = REBOOT_COUNT_DOWN;
   SendSuccess(request);
@@ -245,7 +245,7 @@ void DIYBMSServer::saveBankConfiguration(AsyncWebServerRequest *request) {
     mysettings.combinationParallel =p1->value().equals("Parallel") ? true:false;
   }
 
-  Settings::WriteConfigToPreferences((char*)&mysettings, sizeof(mysettings));
+  Settings::WriteConfigToPreferences((char*)&mysettings, sizeof(mysettings), "myprefs");
 
   //ConfigHasChanged = REBOOT_COUNT_DOWN;
   SendSuccess(request);
@@ -284,7 +284,7 @@ void DIYBMSServer::saveMQTTSetting(AsyncWebServerRequest *request) {
       p1->value().toCharArray(mysettings.mqtt_password,sizeof(mysettings.mqtt_password));
     }
 
-    Settings::WriteConfigToPreferences((char*)&mysettings, sizeof(mysettings));
+    Settings::WriteConfigToPreferences((char*)&mysettings, sizeof(mysettings), "myprefs");
 
     ConfigHasChanged = REBOOT_COUNT_DOWN;
     SendSuccess(request);

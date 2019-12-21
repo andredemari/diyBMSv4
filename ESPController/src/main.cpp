@@ -650,7 +650,7 @@ void onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties 
 
 void LoadConfiguration() {
 
-  if (Settings::ReadConfigFromPreferences((char*)&mysettings, sizeof(mysettings))) return;
+  if (Settings::ReadConfigFromPreferences((char*)&mysettings, sizeof(mysettings), "myprefs")) return;
 
     Serial.println("Apply default config");
 

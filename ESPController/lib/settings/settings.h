@@ -20,10 +20,6 @@ https://creativecommons.org/licenses/by-nc-sa/2.0/uk/
 
 Modified by Derek Jennings Dec '19 for ESP32 using 'Preferences' library.
 
-
-
-ATTiny841 data sheet
-http://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-8495-8-bit-AVR-Microcontrollers-ATtiny441-ATtiny841_Datasheet.pdf
 */
 
 //#include <EEPROM.h>
@@ -31,14 +27,10 @@ http://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-8495-8-bit-AVR-Microcontro
 
 #include "crc16.h"
 
-//#define EEPROM_storageSize 1024
-
 class Settings {
    public:
-      static void WriteWiFiConfigToPreferences(char* settings, int size);
-      static void WriteConfigToPreferences(char* settings, int size);
-      static bool ReadConfigFromPreferences(char* settings, int size);
-      static bool ReadWiFiConfigFromPreferences(char* settings, int size);
-      static void PreferencesFactoryDefault();
+      static void WriteConfigToPreferences(char* settings, int size, const char* name);
+      static bool ReadConfigFromPreferences(char* settings, int size, const char* name);
+      static void PreferencesFactoryDefault(const char* name);
 };
 #endif

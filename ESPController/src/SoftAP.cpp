@@ -50,7 +50,7 @@ void DIYBMSSoftAP::handleSave(AsyncWebServerRequest *request) {
     ssid.toCharArray(_config.wifi_ssid, sizeof(_config.wifi_ssid));
     password.toCharArray(_config.wifi_passphrase, sizeof(_config.wifi_passphrase));
 
-    Settings::WriteWiFiConfigToPreferences((char*)&_config, sizeof(_config));
+    Settings::WriteConfigToPreferences((char*)&_config, sizeof(_config), "wifiprefs");
 
     s = htmlHeader() + F("<p>WIFI settings saved, will reboot in 5 seconds.</p>") + htmlFooter();
 
@@ -73,7 +73,7 @@ void DIYBMSSoftAP::handleSave(AsyncWebServerRequest *request) {
 }
 
 bool DIYBMSSoftAP::LoadConfigFromEEPROM() {
-   return (Settings::ReadWiFiConfigFromPreferences((char*)&_config, sizeof(_config)));
+   return (Settings::ReadConfigFromPreferences((char*)&_config, sizeof(_config), "wifiprefs"));
 }
 
 void DIYBMSSoftAP::SetupAccessPoint(AsyncWebServer  *webserver) {
