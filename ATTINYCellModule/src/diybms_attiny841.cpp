@@ -249,7 +249,7 @@ void DiyBMSATTiny841::SetWatchdog8sec() {
 
 uint16_t DiyBMSATTiny841::ReadADC() {
 
-  //BlueLedOff();
+  BlueLedOff();
 
 
   // must read ADCL first
@@ -259,7 +259,7 @@ uint16_t DiyBMSATTiny841::ReadADC() {
 
 void DiyBMSATTiny841::BeginADCReading() {
 
-  //BlueLedOn();
+  BlueLedOn();
 
   //ADMUXB – ADC Multiplexer Selection Register
   //Select external AREF pin (internal reference turned off)

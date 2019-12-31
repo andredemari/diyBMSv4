@@ -80,8 +80,8 @@ void DefaultConfig() {
 
   //4150 = B constant (25-50℃)
   myConfig.Internal_BCoefficient = 4150;
-  //4150 = B constant (25-50℃)
-  myConfig.External_BCoefficient = 4150;
+  //3950 = B constant (25-50℃)
+  myConfig.External_BCoefficient = 3950;
 
   // Resistance @ 25℃ = 47k, B Constant 4150, 0.20mA max current
   //Using https://www.thinksrs.com/downloads/programs/therm%20calc/ntccalibrator/ntccalculator.html

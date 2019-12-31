@@ -42,6 +42,9 @@ https://creativecommons.org/licenses/by-nc-sa/2.0/uk/
 
 #define nop  __asm__("nop\n\t");
 
+#define Ro_ONBOARD 47000      //Nominal resistance of onboard NTC
+#define Ro_EXTERNAL 50000     //Nominal resistance of external NTC
+
 #ifdef DIYBMS_DEBUG
 
 #define DEBUG_PRINT(str) \

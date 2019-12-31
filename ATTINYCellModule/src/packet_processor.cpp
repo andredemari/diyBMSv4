@@ -79,7 +79,7 @@ bool PacketProcessor::BypassOverheatCheck() {
 // Returns an integer byte indicating the internal thermistor temperature in degrees C
 // uses basic B Coefficient Steinhart calculaton to give rough approximation in temperature
 int16_t PacketProcessor::InternalTemperature() {
-  return Steinhart::ThermistorToCelcius(_config->Internal_BCoefficient, onboard_temperature);
+  return Steinhart::ThermistorToCelcius(_config->Internal_BCoefficient, onboard_temperature, Ro_ONBOARD);
 }
 
 //Returns TRUE if the cell voltage is greater than the required setting
@@ -334,6 +334,6 @@ bool PacketProcessor::processPacket() {
 }
 
 uint16_t PacketProcessor::TemperatureMeasurement() {
-  return (Steinhart::TemperatureToByte(Steinhart::ThermistorToCelcius(_config->Internal_BCoefficient, onboard_temperature)) << 8) +
-    Steinhart::TemperatureToByte(Steinhart::ThermistorToCelcius(_config->External_BCoefficient, external_temperature));
+  return (Steinhart::TemperatureToByte(Steinhart::ThermistorToCelcius(_config->Internal_BCoefficient, onboard_temperature, Ro_ONBOARD)) << 8) +
+    Steinhart::TemperatureToByte(Steinhart::ThermistorToCelcius(_config->External_BCoefficient, external_temperature, Ro_EXTERNAL));
 }

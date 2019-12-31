@@ -1,7 +1,8 @@
 #include "Steinhart.h"
 
-
-int16_t Steinhart::ThermistorToCelcius(uint16_t BCOEFFICIENT, uint16_t RawADC) {
+//Modified by DJ to pass Ro as a parameter
+//Ro is nominal NTC resistance
+int16_t Steinhart::ThermistorToCelcius(uint16_t BCOEFFICIENT, uint16_t RawADC, uint16_t Ro) {
 //The thermistor is connected in series with another 47k resistor
 //and across the 2.048V reference giving 50:50 weighting
 
@@ -17,7 +18,7 @@ int16_t Steinhart::ThermistorToCelcius(uint16_t BCOEFFICIENT, uint16_t RawADC) {
     //float steinhart;
     //steinhart = Resistance / 47000.0; // (R/Ro)
 
-    float steinhart = (1023.0F/(float)RawADC - 1.0);
+    float steinhart = 47000.0 * (1023.0F/(float)RawADC - 1.0)/Ro;
 
     steinhart = log(steinhart); // ln(R/Ro)
     steinhart /= BCOEFFICIENT; // 1/B * ln(R/Ro)
