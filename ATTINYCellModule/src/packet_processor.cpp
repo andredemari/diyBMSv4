@@ -173,10 +173,12 @@ int PacketProcessor::GetBufferSize() {
 //Run when a new packet is received over serial
 bool PacketProcessor::onPacketReceived(const uint8_t* receivebuffer, size_t len) {
   // Process your decoded incoming packet here.
+  //Copy to our buffer (probably a better way to share memory than this)
+  memcpy(&buffer, receivebuffer, sizeof(buffer));   //Moved by DJ to avoid repeating old packets
   if (len == sizeof(buffer)) {
 
     //Copy to our buffer (probably a better way to share memory than this)
-    memcpy(&buffer, receivebuffer, sizeof(buffer));
+    //memcpy(&buffer, receivebuffer, sizeof(buffer));
 
     //Calculate the CRC and compare to received
     uint16_t validateCRC = CRC16::CalculateArray((unsigned char*)&buffer, sizeof(buffer) - 2);

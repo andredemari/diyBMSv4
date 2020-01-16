@@ -65,21 +65,21 @@ void DefaultConfig() {
   myConfig.LoadResistance = 4.40;
 
   //About 2.2100 seems about right
-  myConfig.Calibration = 2.21000;
+  myConfig.Calibration = 2.17000;
 
   //2mV per ADC resolution
   myConfig.mVPerADC = 2.0; //2048.0/1024.0;
 
   //Stop running bypass if temperature over 70 degrees C
-  myConfig.BypassOverTempShutdown = 70;
+  myConfig.BypassOverTempShutdown = 67;
 
   myConfig.mybank = 0;
 
   //Start bypass at 4.1 volt
-  myConfig.BypassThresholdmV = 4100;
+  myConfig.BypassThresholdmV = 4050;
 
-  //4150 = B constant (25-50℃)
-  myConfig.Internal_BCoefficient = 4150;
+  //3960 = B constant (25-50℃)
+  myConfig.Internal_BCoefficient = 3960;
   //3950 = B constant (25-50℃)
   myConfig.External_BCoefficient = 3950;
 
@@ -162,8 +162,8 @@ void setup() {
   //Check if setup routine needs to be run
   if (!Settings::ReadConfigFromEEPROM((uint8_t*)&myConfig, sizeof(myConfig), EEPROM_CONFIG_ADDRESS)) {
     DefaultConfig();
-    //Save settings
-    Settings::WriteConfigToEEPROM((uint8_t*)&myConfig, sizeof(myConfig), EEPROM_CONFIG_ADDRESS);
+    //Save settings   - No need to save Default settings
+    //Settings::WriteConfigToEEPROM((uint8_t*)&myConfig, sizeof(myConfig), EEPROM_CONFIG_ADDRESS);
   }
 
   hardware.double_tap_green_led();
