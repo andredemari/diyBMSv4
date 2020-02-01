@@ -266,13 +266,17 @@ const char FILE_INDEX_HTML[] PROGMEM = R"=====(
     </div>
 
     <div class="rule">
-    <label for="rule8value">8. Minutes after 2</label>
-    <input type="number" min="0" max="1440" step="1" name="rule8value" id="rule8value" value="0" required="">
+    8. MQTT Rule. Active whenever MQTT regular commands are being received.
     </div>
 
     <div class="rule">
-    <label for="rule9value">9. Minutes after 1</label>
+    <label for="rule9value">9. Minutes after 2</label>
     <input type="number" min="0" max="1440" step="1" name="rule9value" id="rule9value" value="0" required="">
+    </div>
+
+    <div class="rule">
+    <label for="rule10value">10. Minutes after 1</label>
+    <input type="number" min="0" max="1440" step="1" name="rule10value" id="rule10value" value="0" required="">
     </div>
 
     <div>
@@ -281,7 +285,7 @@ const char FILE_INDEX_HTML[] PROGMEM = R"=====(
     <select id="defaultrelay1" name="defaultrelay1"><option>On</option><option>Off</option></select>
     <select id="defaultrelay2" name="defaultrelay2"><option>On</option><option>Off</option></select>
     <select id="defaultrelay3" name="defaultrelay3"><option>On</option><option>Off</option></select>
-    <select id="defaultrelay4" name="defaultrelay4"><option>On</option><option>Off</option></select>
+    <!--<select id="defaultrelay4" name="defaultrelay4"><option>On</option><option>Off</option></select>-->
     </div>
 
     <div>
@@ -290,7 +294,7 @@ const char FILE_INDEX_HTML[] PROGMEM = R"=====(
     <select id="relaytype1" name="relaytype1"><option>Std</option><option>Pulse</option></select>
     <select id="relaytype2" name="relaytype2"><option>Std</option><option>Pulse</option></select>
     <select id="relaytype3" name="relaytype3"><option>Std</option><option>Pulse</option></select>
-    <select id="relaytype4" name="relaytype4"><option>Std</option><option>Pulse</option></select>
+  <!--  <select id="relaytype4" name="relaytype4"><option>Std</option><option>Pulse</option></select>-->
     </div>
 
     </div>

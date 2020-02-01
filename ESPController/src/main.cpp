@@ -178,6 +178,9 @@ void processSyncEvent (NTPSyncEvent_t ntpEvent) {
     }
 }
 
+void mqtlostcomms() {   //callback when mqtt timeout timer expires
+  mqt.lostcomms();
+}
 
 void onPacketReceived(const uint8_t* receivebuffer, size_t len)
 {
@@ -319,12 +322,19 @@ void ProcessRules() {
     }
   }
 
-  //Time based rules
-  if (minutesSinceMidnight() >= mysettings.rulevalue[7]) {
-    rule_outcome[7]=true;
+  rule_outcome[7]= mqt.mqttRelayControl;          //Status of MQTT control
+  if(mqt.active) {
+    mqttTimeout.detach();
+    mqttTimeout.attach(120, mqtlostcomms);      //Reset the timeout
+    mqt.active=false;   //clear the flag. It will be set again when another command arrives
   }
+
+  //Time based rules 8 and 9 (Rule 7 is MQTT)
   if (minutesSinceMidnight() >= mysettings.rulevalue[8]) {
     rule_outcome[8]=true;
+  }
+  if (minutesSinceMidnight() >= mysettings.rulevalue[9]) {
+    rule_outcome[9]=true;
   }
 
 }
@@ -348,9 +358,6 @@ void timerSwitchPulsedRelay() {
   myTimerSwitchPulsedRelay.detach();
 }
 
-void mqtlostcomms() {   //callback when mqtt timeout timer expires
-  mqt.lostcomms();
-}
 
 void timerProcessRules() {
 
@@ -381,22 +388,14 @@ void timerProcessRules() {
   for (int8_t n = RELAY_RULES-1; n>=0; n--)
   {
 
-    //Rules 8 and 9 are ignored if MQTT commands are controlling the relays
-    //Rules 1 to 7 are prioritised ahead of MQTT commands
-    if (mqt.mqttRelayControl && n>6) {  //MQTT is in control of the relays
-      for(uint8_t x=0; x<RELAY_TOTAL; x++) relay[x] = mqt.mqttRelay[x];
-      if(mqt.active) {
-        mqttTimeout.detach();
-        mqttTimeout.attach(120, mqtlostcomms);      //Reset the timeout
-        mqt.active=false;   //clear the flag. It will be set again when another command arrives
-      }
-      continue;
-    }
-
     if (rule_outcome[n]==true) {
 
       for (int8_t y = 0; y<RELAY_TOTAL; y++)
       {
+        if (n==7) {         //MQTT rule
+          relay[y] = mqt.mqttRelay[y];      //Set relays
+          continue;
+        }
         //Dont change relay if its set to ignore/X
         if (mysettings.rulerelaystate[n][y]!=RELAY_X) {
             //Logic is inverted on the PCF chip
@@ -410,18 +409,19 @@ void timerProcessRules() {
     }
   }
 
-
-  //Perhaps we should publish the relay settings over MQTT and INFLUX/website?
-  for (int8_t n = 0; n<RELAY_TOTAL; n++)
+  for (int8_t n = 0; n<RELAY_TOTAL; n++) {  //1st pass disable relays   (bit of a kludge)
+    if (relay[n] == 0 ) digitalWrite(ESP32_relays[n], relay[n]);    //Ensure relays are never on at sane time
+  }
+  delay(100);
+  char M;
+  char changestatus[3] = {' ', ' ', ' '};
+  char value[64];
+  for (int8_t n = 0; n<RELAY_TOTAL; n++)    //2nd pass enable relays
   {
-    Serial.print(" Relay");
-    Serial.print(n);
-    if (mqt.mqttRelayControl) Serial.print("M");        //Indicate MQTT has control
-    Serial.print(" = ");
-    Serial.print(relay[n]);Serial.print(" ");
+    M = (mqt.mqttRelayControl) ? 'M' : ' ';        //Indicate MQTT has control
     if (previousRelayState[n]!=relay[n]) {
       //Would be better here to use the WRITE8 to lower i2c traffic
-      Serial.print("**Changed**");    //Changed
+      changestatus[n] = 'C';
       //Set the relay
       if (PCF8574Enabled) pcf8574.write(n, relay[n]);
         else {    //If PFC8574 not fitted use ESP32 pins instead
@@ -433,12 +433,13 @@ void timerProcessRules() {
         //If its a pulsed relay, invert the output quickly via a one time only timer
         previousRelayPulse[n]=true;
         myTimerSwitchPulsedRelay.attach(0.1, timerSwitchPulsedRelay);
-        Serial.print("P");
       }
     }
   }
-  Serial.println("");
-
+  sprintf(value, "Relay 0 %c = %d %c   Relay 1 %c = %d %c  Relay 2 %c = %d %c", \
+    M, relay[0], changestatus[0], M, relay[1], changestatus[1],  M, relay[2], changestatus[2] );
+  //mqttClient.publish("diybmsdebug", 0, true, value, strlen(value));
+  Serial.println(value);
 }
 
 uint8_t counter=0;
@@ -645,7 +646,7 @@ void onMqttConnect(bool sessionPresent) {
 }
 
 void onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
-  mqt.processCommand(payload);
+  mqt.processCommand(payload,len);
 }
 
 void LoadConfiguration() {
@@ -699,9 +700,11 @@ void LoadConfiguration() {
     mysettings.rulevalue[index++]=44000;
     //7. Pack under voltage (mV)
     mysettings.rulevalue[index++]=12000;
-    //8. Minutes after 2
+    //8. MQTT Control - Null value
+    mysettings.rulevalue[index++]=0;
+    //9. Minutes after 2
     mysettings.rulevalue[index++]=60*9; //9am
-    //9. Minutes after 1
+    //10. Minutes after 1
     mysettings.rulevalue[index++]=60*17;  //5pm
 
     //Set all relays to OFF
@@ -764,7 +767,7 @@ void setup() {
   Serial.setDebugOutput(true);
 
   //BST900 serial interface
-  Serial1.begin(38400, SERIAL_8N1);   //ToDo  define pins  DJ
+  Serial1.begin(38400, SERIAL_8N1, 26,25);  
 
   LoadConfiguration();
 
@@ -796,12 +799,16 @@ void setup() {
   //Set relay defaults
   for (int8_t y = 0; y<RELAY_TOTAL; y++)
   {
-      previousRelayState[y]= mysettings.rulerelaydefault[y]==RELAY_ON ? LOW:HIGH;
-       if(PCF8574Enabled) pcf8574.write(y,previousRelayState[y]);
-        else digitalWrite(ESP32_relays[y],previousRelayState[y]);
+      if(PCF8574Enabled) {
+        previousRelayState[y]= mysettings.rulerelaydefault[y]==RELAY_ON ? LOW:HIGH;
+        pcf8574.write(y,previousRelayState[y]);
+      } else {
+        previousRelayState[y]= mysettings.rulerelaydefault[y]==RELAY_ON ? HIGH:LOW;
+        digitalWrite(ESP32_relays[y],previousRelayState[y]);
+      }
   }
 
-  //internal pullup-resistor on the interrupt line via ESP8266
+  //internal pullup-resistor on the interrupt line via ESP32
   if(PCF8574Enabled) {
     pcf8574.resetInterruptPin();
     attachInterrupt(digitalPinToInterrupt(27), PCFInterrupt, FALLING);    // for esp32

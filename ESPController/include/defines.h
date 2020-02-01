@@ -5,7 +5,7 @@
 
 #define GREEN_LED 12    //GPIO 12
 
-#define SDA 14    //I2C pins (chosen so as not to corrupt Flash)
+#define SDA 14    //I2C pins
 #define SCL 27
 #define CLEARAPSETTINGS 23      //Pin on expansion header
 
@@ -16,7 +16,8 @@
 #define RELAY_OFF 0x99
 #define RELAY_X 0x00
 
-#define RELAY_RULES 9
+//#define RELAY_RULES 9
+#define RELAY_RULES 10        //Tenth rule for mqtt control
 //Number of relays on board (4)
 #define RELAY_TOTAL 3         //ESP32 has 2 relay outputs by default + 1 on expansion header
 #define ESP32_RELAY1 4       //GPIO PINS of ESP32 Relay outputs
